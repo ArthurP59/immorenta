@@ -25,6 +25,10 @@ function formatCurrency(value: number): string {
   });
 }
 
+function formatTooltipValue(value: unknown): string {
+  return typeof value === 'number' ? formatCurrency(value) : String(value ?? '');
+}
+
 export default function Charts({ projection, scenario }: Props) {
   const cashflowData = projection.map((row) => ({
     year: row.year,
@@ -56,12 +60,12 @@ export default function Charts({ projection, scenario }: Props) {
       <div style={{ marginTop: 24 }}>
         <h3 style={{ marginTop: 0 }}>Cash-flow annuel</h3>
         <div style={{ width: '100%', height: 320 }}>
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={cashflowData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="year" />
               <YAxis />
-              <Tooltip formatter={(value: number) => formatCurrency(value)} />
+              <Tooltip formatter={formatTooltipValue} />
               <Legend />
               <Line
                 type="monotone"
@@ -87,12 +91,12 @@ export default function Charts({ projection, scenario }: Props) {
       <div style={{ marginTop: 40 }}>
         <h3 style={{ marginTop: 0 }}>Capital restant dû vs valeur du bien</h3>
         <div style={{ width: '100%', height: 320 }}>
-          <ResponsiveContainer>
+          <ResponsiveContainer width="100%" height="100%">
             <LineChart data={valueData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="year" />
               <YAxis />
-              <Tooltip formatter={(value: number) => formatCurrency(value)} />
+              <Tooltip formatter={formatTooltipValue} />
               <Legend />
               <Line
                 type="monotone"
