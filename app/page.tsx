@@ -1,65 +1,1429 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useEffect, useMemo, useState } from 'react';
+import type { User } from 'firebase/auth';
+
+import Charts from '@/app/components/Charts';
+import ScenarioComparison from '@/app/components/ScenarioComparison';
+import SensitivityTable from '@/app/components/SensitivityTable';
+import AuthPanel from '@/components/AuthPanel';
+
+import {
+  calculateFinancedAmount,
+  calculateInitialCashInvested,
+  calculateNotaryFees,
+  calculateTotalProjectCost,
+} from '@/lib/calculations/acquisition';
+
+import {
+  buildDebtSchedule,
+  calculateMonthlyInsurance,
+  calculateMonthlyPayment,
+  calculateTotalMonthlyDebt,
+} from '@/lib/calculations/debt';
+
+import {
+  calculateAverageMonthlyEffort,
+  calculateCashflows,
+  calculateIRR,
+  calculateMultipleCashOnCash,
+} from '@/lib/calculations/irr';
+
+import {
+  buildProjection,
+  calculateAnnualChargesBreakdownForYear,
+} from '@/lib/calculations/operations';
+
+import {
+  calculateCapAchat,
+  calculateCapRateGain,
+  calculateCapSortie,
+  calculateGrossSalePrice,
+  calculateNetSaleProceeds,
+  calculateSaleFees,
+} from '@/lib/calculations/sale';
+
+import { ScenarioInput } from '@/lib/calculations/contracts';
+import { defaultScenario } from '@/lib/defaults/scenario-defaults';
+
+import { subscribeToAuth } from '@/lib/auth';
+import {
+  createSimulation,
+  deleteSimulation,
+  getSimulations,
+  renameSimulation,
+  updateSimulation,
+  type SavedSimulation,
+} from '@/lib/simulations';
+
+function formatCurrency(value: number): string {
+  return value.toLocaleString('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+  });
+}
+
+function formatPercent(value: number): string {
+  return `${(value * 100).toFixed(2)} %`;
+}
+
+function average(values: number[]): number {
+  if (values.length === 0) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function getKpiColor(value: number, type: 'yield' | 'cash' | 'irr'): string {
+  if (type === 'cash') return value >= 0 ? '#15803d' : '#dc2626';
+  if (type === 'irr') {
+    if (value >= 0.1) return '#15803d';
+    if (value >= 0.06) return '#ca8a04';
+    return '#dc2626';
+  }
+  if (value >= 0.08) return '#15803d';
+  if (value >= 0.05) return '#ca8a04';
+  return '#dc2626';
+}
+
+const inputCss: React.CSSProperties = {
+  width: '100%',
+  padding: '10px 12px',
+  borderRadius: 10,
+  border: '1px solid #d1d5db',
+  fontSize: 14,
+  background: '#fff',
+};
+
+const labelCss: React.CSSProperties = {
+  display: 'block',
+  fontSize: 13,
+  fontWeight: 600,
+  marginBottom: 6,
+  color: '#374151',
+};
+
+const sectionCss: React.CSSProperties = {
+  marginTop: 24,
+  padding: 20,
+  border: '1px solid #e5e7eb',
+  borderRadius: 14,
+  background: '#fff',
+};
+
+const cardCss: React.CSSProperties = {
+  padding: 16,
+  border: '1px solid #e5e7eb',
+  borderRadius: 12,
+  background: '#fff',
+};
+
+const subtleNoteCss: React.CSSProperties = {
+  fontStyle: 'italic',
+  color: '#6b7280',
+  fontSize: 12,
+  lineHeight: 1.35,
+  marginTop: -6,
+  marginBottom: 10,
+};
+
+function summaryStyle(): React.CSSProperties {
+  return {
+    cursor: 'pointer',
+    fontWeight: 700,
+    fontSize: 18,
+    color: '#111827',
+    listStyle: 'none',
+  };
+}
+
+function toggleButtonStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: '10px 14px',
+    border: 'none',
+    background: active ? '#111827' : '#fff',
+    color: active ? '#fff' : '#111827',
+    cursor: 'pointer',
+    fontWeight: 600,
+    fontSize: 14,
+  };
+}
+
+function thStyle(): React.CSSProperties {
+  return {
+    textAlign: 'left',
+    padding: 10,
+    borderBottom: '1px solid #d1d5db',
+    fontSize: 13,
+    whiteSpace: 'nowrap',
+    background: '#111827',
+    color: '#fff',
+  };
+}
+
+function tdStyle(bg = '#fff'): React.CSSProperties {
+  return {
+    padding: 10,
+    borderBottom: '1px solid #e5e7eb',
+    whiteSpace: 'nowrap',
+    background: bg,
+  };
+}
+
+function buildComparisonScenarios(baseScenario: ScenarioInput) {
+  return [
+    { id: 'base', name: 'Base', data: baseScenario },
+    {
+      id: 'scenario2',
+      name: 'Scénario 2',
+      data: {
+        ...baseScenario,
+        monthlyRent: baseScenario.monthlyRent * 0.95,
+        annualInterestRate: baseScenario.annualInterestRate + 0.003,
+        annualPriceGrowthRate: Math.max(
+          0,
+          baseScenario.annualPriceGrowthRate - 0.003,
+        ),
+      },
+    },
+    {
+      id: 'scenario3',
+      name: 'Scénario 3',
+      data: {
+        ...baseScenario,
+        monthlyRent: baseScenario.monthlyRent * 1.05,
+        annualInterestRate: Math.max(
+          0,
+          baseScenario.annualInterestRate - 0.003,
+        ),
+        annualPriceGrowthRate: baseScenario.annualPriceGrowthRate + 0.003,
+      },
+    },
+  ];
+}
+
+export default function HomePage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  const [scenario, setScenario] = useState<ScenarioInput>(defaultScenario);
+  const [tableMode, setTableMode] = useState<'resume' | 'detail'>('resume');
+
+  const [savedSimulations, setSavedSimulations] = useState<SavedSimulation[]>([]);
+  const [activeSimulationId, setActiveSimulationId] = useState<string | null>(null);
+  const [simulationsLoading, setSimulationsLoading] = useState(false);
+  const [simulationsError, setSimulationsError] = useState<string | null>(null);
+  const [uiMessage, setUiMessage] = useState<string | null>(null);
+  const [viewportWidth, setViewportWidth] = useState<number>(1200);
+
+  const [comparisonScenarios, setComparisonScenarios] = useState<
+    { id: string; name: string; data: ScenarioInput }[]
+  >(buildComparisonScenarios(defaultScenario));
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAuth((nextUser) => {
+      setUser(nextUser);
+      setAuthLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateWidth = () => setViewportWidth(window.innerWidth);
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+    void refreshSavedSimulations(user);
+  }, [user, authLoading]);
+
+  const isMobile = viewportWidth < 900;
+
+  const appGridStyle: React.CSSProperties = useMemo(
+    () => ({
+      display: 'grid',
+      gridTemplateColumns: isMobile ? '1fr' : '380px minmax(0, 1fr)',
+      gap: 24,
+      alignItems: 'start',
+    }),
+    [isMobile],
+  );
+
+  function rebuildComparisonScenarios(baseScenario: ScenarioInput) {
+    setComparisonScenarios(buildComparisonScenarios(baseScenario));
+  }
+
+  function update<K extends keyof ScenarioInput>(key: K, value: ScenarioInput[K]) {
+    setScenario((prev) => ({ ...prev, [key]: value }));
+
+    if (
+      key !== 'monthlyRent' &&
+      key !== 'annualInterestRate' &&
+      key !== 'annualPriceGrowthRate'
+    ) {
+      setComparisonScenarios((prev) =>
+        prev.map((item) => ({
+          ...item,
+          data: { ...item.data, [key]: value },
+        })),
+      );
+    }
+
+    if (
+      key === 'monthlyRent' ||
+      key === 'annualInterestRate' ||
+      key === 'annualPriceGrowthRate'
+    ) {
+      setComparisonScenarios((prev) =>
+        prev.map((item) =>
+          item.id === 'base'
+            ? { ...item, data: { ...item.data, [key]: value } }
+            : item,
+        ),
+      );
+    }
+  }
+
+  function updateComparisonScenario(
+    id: string,
+    key: 'monthlyRent' | 'annualInterestRate' | 'annualPriceGrowthRate',
+    value: number,
+  ) {
+    setComparisonScenarios((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, data: { ...item.data, [key]: value } }
+          : item,
+      ),
+    );
+
+    if (id === 'base') {
+      setScenario((prev) => ({ ...prev, [key]: value }));
+    }
+  }
+
+  async function refreshSavedSimulations(currentUser: User | null) {
+    if (!currentUser) {
+      setSavedSimulations([]);
+      setActiveSimulationId(null);
+      setSimulationsError(null);
+      return;
+    }
+
+    try {
+      setSimulationsLoading(true);
+      setSimulationsError(null);
+
+      const simulations = await getSimulations(currentUser.uid);
+      setSavedSimulations(simulations);
+
+      if (
+        activeSimulationId &&
+        !simulations.some((simulation) => simulation.id === activeSimulationId)
+      ) {
+        setActiveSimulationId(null);
+      }
+    } catch (error: any) {
+      console.error('Erreur refreshSavedSimulations:', error);
+      setSimulationsError(error?.message ?? 'Impossible de charger les simulations.');
+    } finally {
+      setSimulationsLoading(false);
+    }
+  }
+
+  async function handleSaveSimulation() {
+    if (!user) {
+      setUiMessage('Connecte-toi pour enregistrer une simulation.');
+      return;
+    }
+
+    const defaultName = `Simulation ${savedSimulations.length + 1}`;
+    const name = window.prompt('Nom de la simulation ?', defaultName);
+    if (!name || !name.trim()) return;
+
+    try {
+      setSimulationsLoading(true);
+      setSimulationsError(null);
+      setUiMessage(null);
+
+      const newId = await createSimulation(user.uid, name.trim(), scenario);
+      setActiveSimulationId(newId);
+
+      const refreshed = await getSimulations(user.uid);
+      setSavedSimulations(refreshed);
+
+      setUiMessage('✅ Simulation enregistrée');
+    } catch (error: any) {
+      console.error('Erreur handleSaveSimulation:', error);
+      setSimulationsError(error?.message ?? "Impossible d'enregistrer la simulation.");
+      setUiMessage("❌ Erreur lors de l'enregistrement");
+    } finally {
+      setSimulationsLoading(false);
+    }
+  }
+
+  async function handleUpdateCurrentSimulation() {
+    if (!user) {
+      setUiMessage('Connecte-toi pour mettre à jour une simulation.');
+      return;
+    }
+
+    if (!activeSimulationId) {
+      setUiMessage('Aucune simulation active sélectionnée.');
+      return;
+    }
+
+    try {
+      setSimulationsLoading(true);
+      setSimulationsError(null);
+      setUiMessage(null);
+
+      await updateSimulation(activeSimulationId, scenario);
+
+      const refreshed = await getSimulations(user.uid);
+      setSavedSimulations(refreshed);
+
+      setUiMessage('✅ Simulation mise à jour');
+    } catch (error: any) {
+      console.error('Erreur handleUpdateCurrentSimulation:', error);
+      setSimulationsError(error?.message ?? 'Impossible de mettre à jour la simulation.');
+      setUiMessage('❌ Erreur lors de la mise à jour');
+    } finally {
+      setSimulationsLoading(false);
+    }
+  }
+
+  async function handleDeleteSimulation(simulationId: string) {
+    if (!user) return;
+
+    const confirmed = window.confirm('Supprimer cette simulation ?');
+    if (!confirmed) return;
+
+    try {
+      setSimulationsLoading(true);
+      setSimulationsError(null);
+      setUiMessage(null);
+
+      await deleteSimulation(simulationId);
+
+      if (activeSimulationId === simulationId) {
+        setActiveSimulationId(null);
+      }
+
+      const refreshed = await getSimulations(user.uid);
+      setSavedSimulations(refreshed);
+
+      setUiMessage('✅ Simulation supprimée');
+    } catch (error: any) {
+      console.error('Erreur handleDeleteSimulation:', error);
+      setSimulationsError(error?.message ?? 'Impossible de supprimer la simulation.');
+      setUiMessage('❌ Erreur lors de la suppression');
+    } finally {
+      setSimulationsLoading(false);
+    }
+  }
+
+  async function handleRenameSimulation(simulation: SavedSimulation) {
+    if (!user) return;
+
+    const newName = window.prompt('Nouveau nom de la simulation', simulation.name);
+    if (!newName || !newName.trim()) return;
+
+    try {
+      setSimulationsLoading(true);
+      setSimulationsError(null);
+      setUiMessage(null);
+
+      await renameSimulation(simulation.id, newName.trim());
+
+      const refreshed = await getSimulations(user.uid);
+      setSavedSimulations(refreshed);
+
+      setUiMessage('✅ Simulation renommée');
+    } catch (error: any) {
+      console.error('Erreur handleRenameSimulation:', error);
+      setSimulationsError(error?.message ?? 'Impossible de renommer la simulation.');
+      setUiMessage('❌ Erreur lors du renommage');
+    } finally {
+      setSimulationsLoading(false);
+    }
+  }
+
+  function handleLoadSimulation(simulation: SavedSimulation) {
+    setScenario(simulation.scenario);
+    setActiveSimulationId(simulation.id);
+    rebuildComparisonScenarios(simulation.scenario);
+    setUiMessage(`✅ Simulation "${simulation.name}" chargée`);
+  }
+
+  function handleResetScenario() {
+    setScenario(defaultScenario);
+    setActiveSimulationId(null);
+    rebuildComparisonScenarios(defaultScenario);
+    setUiMessage('✅ Retour au scénario par défaut');
+  }
+
+  const notaryFees = calculateNotaryFees(scenario);
+  const totalProjectCost = calculateTotalProjectCost(scenario);
+  const financedAmount = calculateFinancedAmount(scenario);
+  const initialCashInvested = calculateInitialCashInvested(scenario);
+
+  const monthlyPayment = calculateMonthlyPayment(scenario);
+  const monthlyInsurance = calculateMonthlyInsurance(scenario);
+  const monthlyDebt = calculateTotalMonthlyDebt(scenario);
+
+  const projection = buildProjection(scenario);
+  const year1 = projection[0];
+
+  const debtSchedule = buildDebtSchedule(scenario);
+  const avgInterest = average(
+    debtSchedule.slice(0, scenario.holdingPeriodYears).map((row) => row.interestPaid),
+  );
+
+  const year1ChargesBreakdown = calculateAnnualChargesBreakdownForYear(scenario, 1);
+
+  const grossYield =
+    year1 && totalProjectCost > 0 ? year1.annualGrossRent / totalProjectCost : 0;
+
+  const netYield =
+    year1 && totalProjectCost > 0 ? year1.noi / totalProjectCost : 0;
+
+  const economicVacancy =
+    year1 && year1.annualGrossRent > 0
+      ? year1.annualVacancyLoss / year1.annualGrossRent
+      : 0;
+
+  const opexRatio =
+    year1 && year1.annualGrossRent > 0
+      ? year1.annualCharges / year1.annualGrossRent
+      : 0;
+
+  const avgMonthlyEffort = calculateAverageMonthlyEffort(scenario);
+
+  const grossSalePrice = calculateGrossSalePrice(scenario);
+  const saleFees = calculateSaleFees(scenario);
+  const netSaleProceeds = calculateNetSaleProceeds(scenario);
+
+  const cashflows = calculateCashflows(scenario);
+  const irr = calculateIRR(cashflows);
+  const multipleCashOnCash = calculateMultipleCashOnCash(scenario);
+  const capAchat = calculateCapAchat(scenario);
+  const capSortie = calculateCapSortie(scenario);
+  const gainCapRate = calculateCapRateGain(scenario);
+
+  const resumeColumns = [
+    'Année',
+    'Loyer mensuel',
+    'Loyer facial annuel',
+    'Vacance locative',
+    'Loyers encaissés',
+    'Total opex',
+    'NOI',
+    'Service dette',
+    "Effort d'épargne annuel",
+    "Effort d'épargne mensuel",
+    'CRD fin',
+  ];
+
+  const detailColumns = [
+    'Année',
+    'Loyer mensuel',
+    'Loyer facial annuel',
+    'Vacance locative',
+    'Loyers encaissés',
+    'Charges copro NR',
+    'Taxe foncière',
+    'Assurance PNO',
+    'Gestion locative',
+    'Maintenance',
+    'Comptabilité',
+    'Autres charges',
+    'Total opex',
+    'NOI',
+    'Service dette',
+    "Effort d'épargne annuel",
+    "Effort d'épargne mensuel",
+    'Intérêts',
+    'Amortissement',
+    'CRD fin',
+  ];
+
+  const activeColumns = tableMode === 'resume' ? resumeColumns : detailColumns;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <main
+      style={{
+        padding: isMobile ? 16 : 32,
+        fontFamily: 'Arial, sans-serif',
+        maxWidth: 1500,
+        margin: '0 auto',
+        background: '#f9fafb',
+      }}
+    >
+      <div
+        style={{
+          ...sectionCss,
+          marginTop: 0,
+          padding: isMobile ? 16 : 20,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 16,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div>
+            <h1 style={{ margin: 0, marginBottom: 8 }}>ImmoRenta</h1>
+            <p style={{ color: '#4b5563', margin: 0 }}>
+              Simulez, comparez et pilotez vos investissements locatifs.
+            </p>
+          </div>
+
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 12,
+              background: '#111827',
+              color: '#fff',
+              minWidth: 180,
+            }}
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+            <div style={{ fontSize: 12, opacity: 0.8 }}>Simulations</div>
+            <div style={{ fontWeight: 700 }}>{savedSimulations.length} enregistrée(s)</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ ...sectionCss, marginTop: 24, marginBottom: 24 }}>
+        <h2 style={{ marginTop: 0 }}>Compte</h2>
+        <AuthPanel user={user} />
+      </div>
+
+      <div style={{ ...sectionCss, marginTop: 0, marginBottom: 24 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            gap: 16,
+            flexWrap: 'wrap',
+            alignItems: 'flex-start',
+          }}
+        >
+          <div>
+            <h2 style={{ marginTop: 0, marginBottom: 8 }}>Mes simulations</h2>
+            <div style={{ color: '#6b7280', fontSize: 14 }}>
+              Gère tes scénarios d’investissement depuis ton espace personnel.
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 20 }}>
+          <button
+            type="button"
+            onClick={handleSaveSimulation}
+            style={{
+              padding: '10px 14px',
+              border: 'none',
+              borderRadius: 10,
+              background: '#111827',
+              color: '#fff',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            Enregistrer la simulation actuelle
+          </button>
+
+          <button
+            type="button"
+            onClick={handleUpdateCurrentSimulation}
+            style={{
+              padding: '10px 14px',
+              border: '1px solid #d1d5db',
+              borderRadius: 10,
+              background: '#fff',
+              color: '#111827',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            Mettre à jour la simulation active
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResetScenario}
+            style={{
+              padding: '10px 14px',
+              border: '1px solid #d1d5db',
+              borderRadius: 10,
+              background: '#fff',
+              color: '#111827',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            Revenir au scénario par défaut
+          </button>
+        </div>
+
+        {uiMessage ? (
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 10,
+              background: '#f3f4f6',
+              border: '1px solid #e5e7eb',
+              color: '#111827',
+              fontSize: 14,
+            }}
+          >
+            {uiMessage}
+          </div>
+        ) : null}
+
+        <div style={{ marginTop: 14, color: '#6b7280', fontSize: 14 }}>
+          {!user
+            ? 'Connecte-toi pour enregistrer tes simulations et les retrouver sur tous tes appareils.'
+            : activeSimulationId
+            ? 'Une simulation enregistrée est actuellement chargée.'
+            : 'Aucune simulation enregistrée active.'}
+        </div>
+
+        {simulationsError ? (
+          <div
+            style={{
+              marginTop: 16,
+              padding: 14,
+              border: '1px solid #fecaca',
+              borderRadius: 10,
+              background: '#fef2f2',
+              color: '#b91c1c',
+            }}
+          >
+            {simulationsError}
+          </div>
+        ) : null}
+
+        <div style={{ marginTop: 18, display: 'grid', gap: 12 }}>
+          {simulationsLoading ? (
+            <div
+              style={{
+                padding: 14,
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                background: '#fff',
+                color: '#6b7280',
+              }}
+            >
+              Chargement des simulations...
+            </div>
+          ) : savedSimulations.length === 0 ? (
+            <div
+              style={{
+                padding: 14,
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                background: '#fff',
+                color: '#6b7280',
+              }}
+            >
+              Aucune simulation enregistrée pour le moment.
+            </div>
+          ) : (
+            savedSimulations.map((simulation) => (
+              <div
+                key={simulation.id}
+                style={{
+                  padding: 14,
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 10,
+                  background: activeSimulationId === simulation.id ? '#f3f4f6' : '#fff',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 700, color: '#111827' }}>
+                    {simulation.name}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleLoadSimulation(simulation)}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 10,
+                      border: 'none',
+                      background: '#111827',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: 13,
+                    }}
+                  >
+                    Charger
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRenameSimulation(simulation)}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 10,
+                      border: '1px solid #d1d5db',
+                      background: '#fff',
+                      color: '#111827',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: 13,
+                    }}
+                  >
+                    Renommer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteSimulation(simulation.id)}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: 10,
+                      border: '1px solid #fecaca',
+                      background: '#fff',
+                      color: '#b91c1c',
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: 13,
+                    }}
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div style={appGridStyle}>
+        <div
+          style={{
+            ...sectionCss,
+            marginTop: 0,
+            position: isMobile ? 'static' : 'sticky',
+            top: isMobile ? undefined : 20,
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>Hypothèses modifiables</h2>
+
+          <details open style={{ marginTop: 16 }}>
+            <summary style={summaryStyle()}>Acquisition</summary>
+            <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+              <div>
+                <label style={labelCss}>Prix d’achat</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.purchasePrice}
+                  onChange={(e) => update('purchasePrice', Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Frais de notaire (%)</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  step="0.001"
+                  value={scenario.notaryFeesRate}
+                  onChange={(e) => update('notaryFeesRate', Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Travaux initiaux</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.works}
+                  onChange={(e) => update('works', Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Mobilier initial</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.furniture}
+                  onChange={(e) => update('furniture', Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Frais de dossier / garantie</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.loanFees}
+                  onChange={(e) => update('loanFees', Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Croissance annuelle de valeur du bien</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  step="0.001"
+                  value={scenario.annualPriceGrowthRate}
+                  onChange={(e) =>
+                    update('annualPriceGrowthRate', Number(e.target.value))
+                  }
+                />
+              </div>
+            </div>
+          </details>
+
+          <details open style={{ marginTop: 18 }}>
+            <summary style={summaryStyle()}>Exploitation</summary>
+            <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+              <div>
+                <label style={labelCss}>Loyer mensuel initial</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.monthlyRent}
+                  onChange={(e) => update('monthlyRent', Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Vacance locative (%)</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  step="0.001"
+                  value={scenario.vacancyRate}
+                  onChange={(e) => update('vacancyRate', Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Croissance annuelle des loyers</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  step="0.001"
+                  value={scenario.annualRentGrowthRate}
+                  onChange={(e) =>
+                    update('annualRentGrowthRate', Number(e.target.value))
+                  }
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Croissance annuelle des charges</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  step="0.001"
+                  value={scenario.annualChargesGrowthRate}
+                  onChange={(e) =>
+                    update('annualChargesGrowthRate', Number(e.target.value))
+                  }
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Charges de copro annuelles non récupérables</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.nonRecoverableChargesAnnual}
+                  onChange={(e) =>
+                    update('nonRecoverableChargesAnnual', Number(e.target.value))
+                  }
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Taxe foncière</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.propertyTaxAnnual}
+                  onChange={(e) =>
+                    update('propertyTaxAnnual', Number(e.target.value))
+                  }
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Assurance propriétaire annuelle (PNO)</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.pnoInsuranceAnnual}
+                  onChange={(e) =>
+                    update('pnoInsuranceAnnual', Number(e.target.value))
+                  }
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Gestion locative (% loyers encaissés)</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  step="0.001"
+                  value={scenario.managementFeesRate}
+                  onChange={(e) =>
+                    update('managementFeesRate', Number(e.target.value))
+                  }
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Gestion comptable annuelle</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.accountingAnnual}
+                  onChange={(e) =>
+                    update('accountingAnnual', Number(e.target.value))
+                  }
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Maintenance annuelle</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.maintenanceAnnual}
+                  onChange={(e) =>
+                    update('maintenanceAnnual', Number(e.target.value))
+                  }
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Autres charges annuelles</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.otherChargesAnnual}
+                  onChange={(e) =>
+                    update('otherChargesAnnual', Number(e.target.value))
+                  }
+                />
+              </div>
+            </div>
+          </details>
+
+          <details open style={{ marginTop: 18 }}>
+            <summary style={summaryStyle()}>Financement et sortie</summary>
+            <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+              <div>
+                <label style={labelCss}>Apport</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.downPayment}
+                  onChange={(e) => update('downPayment', Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Taux nominal annuel</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  step="0.001"
+                  value={scenario.annualInterestRate}
+                  onChange={(e) =>
+                    update('annualInterestRate', Number(e.target.value))
+                  }
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Taux assurance emprunteur</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  step="0.001"
+                  value={scenario.annualInsuranceRate}
+                  onChange={(e) =>
+                    update('annualInsuranceRate', Number(e.target.value))
+                  }
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Durée du prêt (années)</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.loanDurationYears}
+                  onChange={(e) =>
+                    update('loanDurationYears', Number(e.target.value))
+                  }
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Durée de détention</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  value={scenario.holdingPeriodYears}
+                  onChange={(e) =>
+                    update('holdingPeriodYears', Number(e.target.value))
+                  }
+                />
+              </div>
+              <div>
+                <label style={labelCss}>Frais de vente (%)</label>
+                <input
+                  style={inputCss}
+                  type="number"
+                  step="0.001"
+                  value={scenario.saleFeesRate}
+                  onChange={(e) => update('saleFeesRate', Number(e.target.value))}
+                />
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <div>
+          <details open style={{ ...sectionCss, marginTop: 0 }}>
+            <summary style={summaryStyle()}>Dashboard détaillé</summary>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: 16,
+                marginTop: 16,
+                marginBottom: 20,
+              }}
+            >
+              <div style={cardCss}>
+                <div style={{ color: '#6b7280', fontSize: 13 }}>Coût total projet</div>
+                <div style={{ fontSize: 28, fontWeight: 700 }}>
+                  {formatCurrency(totalProjectCost)}
+                </div>
+              </div>
+              <div style={cardCss}>
+                <div style={{ color: '#6b7280', fontSize: 13 }}>Cash investi</div>
+                <div style={{ fontSize: 28, fontWeight: 700 }}>
+                  {formatCurrency(initialCashInvested)}
+                </div>
+              </div>
+              <div style={cardCss}>
+                <div style={{ color: '#6b7280', fontSize: 13 }}>Cash-flow mensuel</div>
+                <div
+                  style={{
+                    fontSize: 28,
+                    fontWeight: 700,
+                    color: getKpiColor(year1 ? year1.monthlyCashflow : 0, 'cash'),
+                  }}
+                >
+                  {formatCurrency(year1 ? year1.monthlyCashflow : 0)}
+                </div>
+              </div>
+              <div style={cardCss}>
+                <div style={{ color: '#6b7280', fontSize: 13 }}>TRI equity</div>
+                <div
+                  style={{
+                    fontSize: 28,
+                    fontWeight: 700,
+                    color: getKpiColor(irr, 'irr'),
+                  }}
+                >
+                  {formatPercent(irr)}
+                </div>
+              </div>
+              <div style={cardCss}>
+                <div style={{ color: '#6b7280', fontSize: 13 }}>Rendement brut</div>
+                <div
+                  style={{
+                    fontSize: 28,
+                    fontWeight: 700,
+                    color: getKpiColor(grossYield, 'yield'),
+                  }}
+                >
+                  {formatPercent(grossYield)}
+                </div>
+              </div>
+              <div style={cardCss}>
+                <div style={{ color: '#6b7280', fontSize: 13 }}>Rendement net</div>
+                <div
+                  style={{
+                    fontSize: 28,
+                    fontWeight: 700,
+                    color: getKpiColor(netYield, 'yield'),
+                  }}
+                >
+                  {formatPercent(netYield)}
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                gap: 20,
+              }}
+            >
+              <div style={cardCss}>
+                <h3 style={{ marginTop: 0 }}>Coût d’acquisition</h3>
+                <p><strong>Prix net vendeur :</strong> {formatCurrency(scenario.purchasePrice)}</p>
+                <p><strong>Frais de notaire :</strong> {formatCurrency(notaryFees)}</p>
+                <p><strong>Frais de dossier / garantie :</strong> {formatCurrency(scenario.loanFees)}</p>
+                <p><strong>Mobilier :</strong> {formatCurrency(scenario.furniture)}</p>
+                <p><strong>Travaux :</strong> {formatCurrency(scenario.works)}</p>
+                <p><strong>Coût total projet :</strong> {formatCurrency(totalProjectCost)}</p>
+                <p><strong>Dont apport :</strong> {formatCurrency(scenario.downPayment)}</p>
+              </div>
+
+              <div style={cardCss}>
+                <h3 style={{ marginTop: 0 }}>Dette / cash-flow</h3>
+                <p><strong>Dette initiale :</strong> {formatCurrency(financedAmount)}</p>
+                <p><strong>Mensualité hors assurance :</strong> {formatCurrency(monthlyPayment)}</p>
+                <p><strong>Assurance mensuelle :</strong> {formatCurrency(monthlyInsurance)}</p>
+                <p><strong>Mensualité totale :</strong> {formatCurrency(monthlyDebt)}</p>
+                <p><strong>Service de la dette année 1 :</strong> {formatCurrency(year1 ? year1.annualDebtService : 0)}</p>
+              </div>
+
+              <div style={cardCss}>
+                <h3 style={{ marginTop: 0 }}>Rendements</h3>
+                <p>
+                  <strong>Rendement brut initial :</strong>{' '}
+                  <span style={{ color: getKpiColor(grossYield, 'yield'), fontWeight: 700 }}>
+                    {formatPercent(grossYield)}
+                  </span>
+                </p>
+                <p style={subtleNoteCss}>
+                  Correspond au loyer HC × 12 / coût total projet.
+                </p>
+
+                <p>
+                  <strong>Rendement net initial :</strong>{' '}
+                  <span style={{ color: getKpiColor(netYield, 'yield'), fontWeight: 700 }}>
+                    {formatPercent(netYield)}
+                  </span>
+                </p>
+                <p style={subtleNoteCss}>
+                  Correspond au NOI / coût total projet. Le NOI correspond aux loyers moins les charges d’exploitation.
+                </p>
+
+                <p><strong>Vacance économique :</strong> {formatPercent(economicVacancy)}</p>
+
+                <p><strong>Opex ratio :</strong> {formatPercent(opexRatio)}</p>
+                <p style={subtleNoteCss}>
+                  Correspond aux charges d’exploitation / loyer.
+                </p>
+
+                <p><strong>Effort épargne mensuel moy. :</strong> {formatCurrency(avgMonthlyEffort)}</p>
+                <p><strong>Intérêts annuels moyens sur détention :</strong> {formatCurrency(avgInterest)}</p>
+                <p><strong>Intérêts année 1 :</strong> {formatCurrency(year1 ? year1.annualInterest : 0)}</p>
+              </div>
+
+              <div style={cardCss}>
+                <h3 style={{ marginTop: 0 }}>Sortie / création de valeur</h3>
+                <p><strong>Prix de cession brut :</strong> {formatCurrency(grossSalePrice)}</p>
+                <p><strong>Frais de vente :</strong> {formatCurrency(saleFees)}</p>
+                <p><strong>Net vendeur après dette :</strong> {formatCurrency(netSaleProceeds)}</p>
+                <p><strong>TRI equity :</strong> <span style={{ color: getKpiColor(irr, 'irr'), fontWeight: 700 }}>{formatPercent(irr)}</span></p>
+                <p><strong>Multiple cash-on-cash :</strong> {multipleCashOnCash.toFixed(2)}x</p>
+                <p><strong>Cap Achat :</strong> {formatPercent(capAchat)}</p>
+                <p><strong>Cap Sortie :</strong> {formatPercent(capSortie)}</p>
+                <p><strong>Gain Cap rate :</strong> {formatPercent(gainCapRate)}</p>
+              </div>
+            </div>
+          </details>
+
+          <details open style={sectionCss}>
+            <summary style={summaryStyle()}>Synthèse des Inputs année 1</summary>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                gap: 16,
+                marginTop: 16,
+              }}
+            >
+              <div style={cardCss}>
+                <p><strong>Frais de notaire :</strong> {formatCurrency(notaryFees)}</p>
+                <p><strong>Mensualité hors assurance :</strong> {formatCurrency(monthlyPayment)}</p>
+                <p><strong>Assurance emprunteur mensuelle :</strong> {formatCurrency(monthlyInsurance)}</p>
+                <p><strong>Mensualité totale :</strong> {formatCurrency(monthlyDebt)}</p>
+              </div>
+              <div style={cardCss}>
+                <p><strong>Charges de copro annuelles non récupérables :</strong> {formatCurrency(year1ChargesBreakdown.coproNonRecoverable)}</p>
+                <p><strong>Taxe foncière :</strong> {formatCurrency(year1ChargesBreakdown.propertyTax)}</p>
+                <p><strong>Assurance propriétaire annuelle (PNO) :</strong> {formatCurrency(year1ChargesBreakdown.pnoInsurance)}</p>
+              </div>
+              <div style={cardCss}>
+                <p><strong>Gestion locative :</strong> {formatCurrency(year1ChargesBreakdown.managementFees)}</p>
+                <p><strong>Maintenance annuelle :</strong> {formatCurrency(year1ChargesBreakdown.maintenance)}</p>
+                <p><strong>Gestion comptable annuelle :</strong> {formatCurrency(year1ChargesBreakdown.accounting)}</p>
+                <p><strong>Autres charges annuelles :</strong> {formatCurrency(year1ChargesBreakdown.otherCharges)}</p>
+              </div>
+            </div>
+          </details>
+
+          <SensitivityTable scenario={scenario} />
+
+          <div style={sectionCss}>
+            <h2 style={{ marginTop: 0 }}>Comparaison de scénarios</h2>
+            <p style={{ color: '#6b7280', marginTop: 0, marginBottom: 16 }}>
+              Les scénarios font varier principalement le loyer, le <strong>taux d’intérêt annuel</strong> et la <strong>prise de valeur annuelle de l’actif</strong>.
+            </p>
+            <ScenarioComparison
+              scenarios={comparisonScenarios}
+              onScenarioChange={updateComparisonScenario}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
+
+          <details open style={sectionCss}>
+            <summary style={summaryStyle()}>Tableau d’exploitation annuelle</summary>
+
+            <div
+              style={{
+                marginTop: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div
+                style={{
+                  display: 'inline-flex',
+                  border: '1px solid #d1d5db',
+                  borderRadius: 10,
+                  overflow: 'hidden',
+                  background: '#fff',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setTableMode('resume')}
+                  style={toggleButtonStyle(tableMode === 'resume')}
+                >
+                  Mode résumé
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTableMode('detail')}
+                  style={toggleButtonStyle(tableMode === 'detail')}
+                >
+                  Mode détaillé
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 16, overflowX: 'auto' }}>
+              <table
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  minWidth: tableMode === 'resume' ? 1300 : 2200,
+                }}
+              >
+                <thead>
+                  <tr>
+                    {activeColumns.map((header) => (
+                      <th key={header} style={thStyle()}>
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {projection.map((row, index) => {
+                    const bg = index % 2 === 0 ? '#ffffff' : '#f9fafb';
+
+                    const cells: Record<string, React.ReactNode> = {
+                      'Année': row.year,
+                      'Loyer mensuel': formatCurrency(row.monthlyRent),
+                      'Loyer facial annuel': formatCurrency(row.annualGrossRent),
+                      'Vacance locative': formatCurrency(row.annualVacancyLoss),
+                      'Loyers encaissés': formatCurrency(row.annualCollectedRent),
+                      'Charges copro NR': formatCurrency(row.coproNonRecoverable),
+                      'Taxe foncière': formatCurrency(row.propertyTax),
+                      'Assurance PNO': formatCurrency(row.pnoInsurance),
+                      'Gestion locative': formatCurrency(row.managementFees),
+                      'Maintenance': formatCurrency(row.maintenance),
+                      'Comptabilité': formatCurrency(row.accounting),
+                      'Autres charges': formatCurrency(row.otherCharges),
+                      'Total opex': formatCurrency(row.annualCharges),
+                      'NOI': formatCurrency(row.noi),
+                      'Service dette': formatCurrency(row.annualDebtService),
+                      "Effort d'épargne annuel": formatCurrency(row.annualCashflow),
+                      "Effort d'épargne mensuel": formatCurrency(row.monthlyCashflow),
+                      'Intérêts': formatCurrency(row.annualInterest),
+                      'Amortissement': formatCurrency(row.annualPrincipal),
+                      'CRD fin': formatCurrency(row.remainingBalanceEnd),
+                    };
+
+                    return (
+                      <tr key={row.year} style={{ background: bg }}>
+                        {activeColumns.map((col) => {
+                          const isStrong = col === 'Loyers encaissés' || col === 'NOI';
+                          const isTotalOpex = col === 'Total opex';
+                          const isAnnualEffort = col === "Effort d'épargne annuel";
+                          const isMonthlyEffort = col === "Effort d'épargne mensuel";
+
+                          return (
+                            <td
+                              key={col}
+                              style={{
+                                ...tdStyle(bg),
+                                color: isAnnualEffort
+                                  ? getKpiColor(row.annualCashflow, 'cash')
+                                  : isMonthlyEffort
+                                  ? getKpiColor(row.monthlyCashflow, 'cash')
+                                  : isTotalOpex
+                                  ? '#6b7280'
+                                  : undefined,
+                                fontWeight:
+                                  isTotalOpex || isStrong ? 700 : 400,
+                              }}
+                            >
+                              {cells[col]}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <p style={{ fontStyle: 'italic', color: '#6b7280', marginTop: 12 }}>
+              CRD = Capital restant dû.
+            </p>
+          </details>
+
+          <Charts projection={projection} scenario={scenario} />
+
+          <details style={sectionCss}>
+            <summary style={summaryStyle()}>Revente</summary>
+            <div style={{ marginTop: 16 }}>
+              <p><strong>Prix de cession brut :</strong> {formatCurrency(grossSalePrice)}</p>
+              <p><strong>Frais de vente :</strong> {formatCurrency(saleFees)}</p>
+              <p><strong>Net vendeur après dette :</strong> {formatCurrency(netSaleProceeds)}</p>
+              <p style={subtleNoteCss}>
+                Le net vendeur après dette correspond au prix de revente – frais de revente – capital restant dû en année de revente.
+              </p>
+              <p><strong>Flux TRI :</strong> {cashflows.map(formatCurrency).join(' | ')}</p>
+            </div>
+          </details>
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
