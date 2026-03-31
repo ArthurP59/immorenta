@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import type { User } from 'firebase/auth';
 
 import Charts from '@/app/components/Charts';
@@ -73,28 +74,39 @@ function average(values: number[]): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
-function getKpiColor(value: number, type: 'yield' | 'cash' | 'irr'): string {
-  if (type === 'cash') return value >= 0 ? '#15803d' : '#dc2626';
-  if (type === 'irr') {
-    if (value >= 0.1) return '#15803d';
-    if (value >= 0.06) return '#ca8a04';
-    return '#dc2626';
-  }
-  if (value >= 0.08) return '#15803d';
-  if (value >= 0.05) return '#ca8a04';
-  return '#dc2626';
+function getCashColor(value: number): string {
+  return value >= 0 ? '#15803d' : '#dc2626';
 }
 
-const inputCss: React.CSSProperties = {
+function getGrossYieldColor(value: number): string {
+  if (value < 0.03) return '#dc2626';
+  if (value > 0.07) return '#15803d';
+  return '#ca8a04';
+}
+
+function getNetYieldColor(value: number): string {
+  if (value < 0.02) return '#dc2626';
+  if (value > 0.05) return '#15803d';
+  return '#ca8a04';
+}
+
+function getIrrColor(value: number): string {
+  if (value < 0.03) return '#dc2626';
+  if (value > 0.07) return '#15803d';
+  return '#ca8a04';
+}
+
+const inputCss: CSSProperties = {
   width: '100%',
   padding: '10px 12px',
   borderRadius: 10,
   border: '1px solid #d1d5db',
   fontSize: 14,
   background: '#fff',
+  boxSizing: 'border-box',
 };
 
-const labelCss: React.CSSProperties = {
+const labelCss: CSSProperties = {
   display: 'block',
   fontSize: 13,
   fontWeight: 600,
@@ -102,22 +114,26 @@ const labelCss: React.CSSProperties = {
   color: '#374151',
 };
 
-const sectionCss: React.CSSProperties = {
+const sectionCss: CSSProperties = {
   marginTop: 24,
   padding: 20,
   border: '1px solid #e5e7eb',
   borderRadius: 14,
   background: '#fff',
+  boxSizing: 'border-box',
+  minWidth: 0,
 };
 
-const cardCss: React.CSSProperties = {
+const cardCss: CSSProperties = {
   padding: 16,
   border: '1px solid #e5e7eb',
   borderRadius: 12,
   background: '#fff',
+  boxSizing: 'border-box',
+  minWidth: 0,
 };
 
-const subtleNoteCss: React.CSSProperties = {
+const subtleNoteCss: CSSProperties = {
   fontStyle: 'italic',
   color: '#6b7280',
   fontSize: 12,
@@ -126,29 +142,30 @@ const subtleNoteCss: React.CSSProperties = {
   marginBottom: 10,
 };
 
-function summaryStyle(): React.CSSProperties {
+function summaryStyle(isMobile: boolean): CSSProperties {
   return {
     cursor: 'pointer',
     fontWeight: 700,
-    fontSize: 18,
+    fontSize: isMobile ? 16 : 18,
     color: '#111827',
     listStyle: 'none',
   };
 }
 
-function toggleButtonStyle(active: boolean): React.CSSProperties {
+function toggleButtonStyle(active: boolean, isMobile: boolean): CSSProperties {
   return {
-    padding: '10px 14px',
+    padding: isMobile ? '10px 12px' : '10px 14px',
     border: 'none',
     background: active ? '#111827' : '#fff',
     color: active ? '#fff' : '#111827',
     cursor: 'pointer',
     fontWeight: 600,
-    fontSize: 14,
+    fontSize: isMobile ? 13 : 14,
+    flex: isMobile ? 1 : undefined,
   };
 }
 
-function thStyle(): React.CSSProperties {
+function thStyle(): CSSProperties {
   return {
     textAlign: 'left',
     padding: 10,
@@ -160,12 +177,80 @@ function thStyle(): React.CSSProperties {
   };
 }
 
-function tdStyle(bg = '#fff'): React.CSSProperties {
+function tdStyle(bg = '#fff'): CSSProperties {
   return {
     padding: 10,
     borderBottom: '1px solid #e5e7eb',
     whiteSpace: 'nowrap',
     background: bg,
+  };
+}
+
+function primaryButtonStyle(isMobile: boolean): CSSProperties {
+  return {
+    padding: '10px 14px',
+    border: 'none',
+    borderRadius: 10,
+    background: '#111827',
+    color: '#fff',
+    cursor: 'pointer',
+    fontWeight: 600,
+    width: isMobile ? '100%' : 'auto',
+  };
+}
+
+function secondaryButtonStyle(isMobile: boolean): CSSProperties {
+  return {
+    padding: '10px 14px',
+    border: '1px solid #d1d5db',
+    borderRadius: 10,
+    background: '#fff',
+    color: '#111827',
+    cursor: 'pointer',
+    fontWeight: 600,
+    width: isMobile ? '100%' : 'auto',
+  };
+}
+
+function dangerButtonStyle(isMobile: boolean): CSSProperties {
+  return {
+    padding: '8px 12px',
+    borderRadius: 10,
+    border: '1px solid #fecaca',
+    background: '#fff',
+    color: '#b91c1c',
+    cursor: 'pointer',
+    fontWeight: 600,
+    fontSize: 13,
+    width: isMobile ? '100%' : 'auto',
+  };
+}
+
+function smallPrimaryButtonStyle(isMobile: boolean): CSSProperties {
+  return {
+    padding: '8px 12px',
+    borderRadius: 10,
+    border: 'none',
+    background: '#111827',
+    color: '#fff',
+    cursor: 'pointer',
+    fontWeight: 600,
+    fontSize: 13,
+    width: isMobile ? '100%' : 'auto',
+  };
+}
+
+function smallSecondaryButtonStyle(isMobile: boolean): CSSProperties {
+  return {
+    padding: '8px 12px',
+    borderRadius: 10,
+    border: '1px solid #d1d5db',
+    background: '#fff',
+    color: '#111827',
+    cursor: 'pointer',
+    fontWeight: 600,
+    fontSize: 13,
+    width: isMobile ? '100%' : 'auto',
   };
 }
 
@@ -243,14 +328,17 @@ export default function HomePage() {
     void refreshSavedSimulations(user);
   }, [user, authLoading]);
 
+  const isSmallMobile = viewportWidth < 640;
   const isMobile = viewportWidth < 900;
 
-  const appGridStyle: React.CSSProperties = useMemo(
+  const appGridStyle: CSSProperties = useMemo(
     () => ({
       display: 'grid',
-      gridTemplateColumns: isMobile ? '1fr' : '380px minmax(0, 1fr)',
-      gap: 24,
+      gridTemplateColumns: isMobile ? '1fr' : '360px minmax(0, 1fr)',
+      gap: isMobile ? 16 : 24,
       alignItems: 'start',
+      width: '100%',
+      minWidth: 0,
     }),
     [isMobile],
   );
@@ -559,18 +647,20 @@ export default function HomePage() {
   return (
     <main
       style={{
-        padding: isMobile ? 16 : 32,
+        padding: isMobile ? 12 : 32,
         fontFamily: 'Arial, sans-serif',
         maxWidth: 1500,
         margin: '0 auto',
         background: '#f9fafb',
+        boxSizing: 'border-box',
+        minWidth: 0,
       }}
     >
       <div
         style={{
           ...sectionCss,
           marginTop: 0,
-          padding: isMobile ? 16 : 20,
+          padding: isMobile ? 14 : 20,
         }}
       >
         <div
@@ -578,13 +668,31 @@ export default function HomePage() {
             display: 'flex',
             justifyContent: 'space-between',
             gap: 16,
-            alignItems: 'center',
+            alignItems: isMobile ? 'flex-start' : 'center',
             flexWrap: 'wrap',
+            flexDirection: isMobile ? 'column' : 'row',
+            minWidth: 0,
           }}
         >
-          <div>
-            <h1 style={{ margin: 0, marginBottom: 8 }}>ImmoRenta</h1>
-            <p style={{ color: '#4b5563', margin: 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <h1
+              style={{
+                margin: 0,
+                marginBottom: 8,
+                fontSize: isMobile ? 28 : 36,
+                lineHeight: 1.1,
+              }}
+            >
+              ImmoRenta
+            </h1>
+            <p
+              style={{
+                color: '#4b5563',
+                margin: 0,
+                fontSize: isMobile ? 14 : 16,
+                lineHeight: 1.4,
+              }}
+            >
               Simulez, comparez et pilotez vos investissements locatifs.
             </p>
           </div>
@@ -595,7 +703,9 @@ export default function HomePage() {
               borderRadius: 12,
               background: '#111827',
               color: '#fff',
-              minWidth: 180,
+              minWidth: isMobile ? '100%' : 180,
+              width: isMobile ? '100%' : 'auto',
+              boxSizing: 'border-box',
             }}
           >
             <div style={{ fontSize: 12, opacity: 0.8 }}>Simulations</div>
@@ -604,12 +714,12 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div style={{ ...sectionCss, marginTop: 24, marginBottom: 24 }}>
-        <h2 style={{ marginTop: 0 }}>Compte</h2>
+      <div style={{ ...sectionCss, marginTop: 16, marginBottom: 16, padding: isMobile ? 14 : 20 }}>
+        <h2 style={{ marginTop: 0, marginBottom: 12, fontSize: isMobile ? 20 : 24 }}>Compte</h2>
         <AuthPanel user={user} />
       </div>
 
-      <div style={{ ...sectionCss, marginTop: 0, marginBottom: 24 }}>
+      <div style={{ ...sectionCss, marginTop: 0, marginBottom: 16, padding: isMobile ? 14 : 20 }}>
         <div
           style={{
             display: 'flex',
@@ -617,29 +727,32 @@ export default function HomePage() {
             gap: 16,
             flexWrap: 'wrap',
             alignItems: 'flex-start',
+            flexDirection: isMobile ? 'column' : 'row',
+            minWidth: 0,
           }}
         >
           <div>
-            <h2 style={{ marginTop: 0, marginBottom: 8 }}>Mes simulations</h2>
-            <div style={{ color: '#6b7280', fontSize: 14 }}>
+            <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: isMobile ? 20 : 24 }}>
+              Mes simulations
+            </h2>
+            <div style={{ color: '#6b7280', fontSize: 14, lineHeight: 1.4 }}>
               Gère tes scénarios d’investissement depuis ton espace personnel.
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 20 }}>
+        <div
+          style={{
+            display: 'grid',
+            gap: 12,
+            marginTop: 20,
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(260px, max-content))',
+          }}
+        >
           <button
             type="button"
             onClick={handleSaveSimulation}
-            style={{
-              padding: '10px 14px',
-              border: 'none',
-              borderRadius: 10,
-              background: '#111827',
-              color: '#fff',
-              cursor: 'pointer',
-              fontWeight: 600,
-            }}
+            style={primaryButtonStyle(isMobile)}
           >
             Enregistrer la simulation actuelle
           </button>
@@ -647,15 +760,7 @@ export default function HomePage() {
           <button
             type="button"
             onClick={handleUpdateCurrentSimulation}
-            style={{
-              padding: '10px 14px',
-              border: '1px solid #d1d5db',
-              borderRadius: 10,
-              background: '#fff',
-              color: '#111827',
-              cursor: 'pointer',
-              fontWeight: 600,
-            }}
+            style={secondaryButtonStyle(isMobile)}
           >
             Mettre à jour la simulation active
           </button>
@@ -663,15 +768,7 @@ export default function HomePage() {
           <button
             type="button"
             onClick={handleResetScenario}
-            style={{
-              padding: '10px 14px',
-              border: '1px solid #d1d5db',
-              borderRadius: 10,
-              background: '#fff',
-              color: '#111827',
-              cursor: 'pointer',
-              fontWeight: 600,
-            }}
+            style={secondaryButtonStyle(isMobile)}
           >
             Revenir au scénario par défaut
           </button>
@@ -693,7 +790,7 @@ export default function HomePage() {
           </div>
         ) : null}
 
-        <div style={{ marginTop: 14, color: '#6b7280', fontSize: 14 }}>
+        <div style={{ marginTop: 14, color: '#6b7280', fontSize: 14, lineHeight: 1.4 }}>
           {!user
             ? 'Connecte-toi pour enregistrer tes simulations et les retrouver sur tous tes appareils.'
             : activeSimulationId
@@ -753,62 +850,42 @@ export default function HomePage() {
                   display: 'flex',
                   justifyContent: 'space-between',
                   gap: 12,
-                  alignItems: 'center',
+                  alignItems: isMobile ? 'stretch' : 'center',
                   flexWrap: 'wrap',
+                  flexDirection: isMobile ? 'column' : 'row',
+                  minWidth: 0,
                 }}
               >
-                <div>
-                  <div style={{ fontWeight: 700, color: '#111827' }}>
-                    {simulation.name}
-                  </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: '#111827' }}>{simulation.name}</div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gap: 8,
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, max-content)',
+                    width: isMobile ? '100%' : 'auto',
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => handleLoadSimulation(simulation)}
-                    style={{
-                      padding: '8px 12px',
-                      borderRadius: 10,
-                      border: 'none',
-                      background: '#111827',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                      fontSize: 13,
-                    }}
+                    style={smallPrimaryButtonStyle(isMobile)}
                   >
                     Charger
                   </button>
                   <button
                     type="button"
                     onClick={() => handleRenameSimulation(simulation)}
-                    style={{
-                      padding: '8px 12px',
-                      borderRadius: 10,
-                      border: '1px solid #d1d5db',
-                      background: '#fff',
-                      color: '#111827',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                      fontSize: 13,
-                    }}
+                    style={smallSecondaryButtonStyle(isMobile)}
                   >
                     Renommer
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDeleteSimulation(simulation.id)}
-                    style={{
-                      padding: '8px 12px',
-                      borderRadius: 10,
-                      border: '1px solid #fecaca',
-                      background: '#fff',
-                      color: '#b91c1c',
-                      cursor: 'pointer',
-                      fontWeight: 600,
-                      fontSize: 13,
-                    }}
+                    style={dangerButtonStyle(isMobile)}
                   >
                     Supprimer
                   </button>
@@ -819,19 +896,32 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div style={appGridStyle}>
+      <div
+        style={
+          isMobile
+            ? {
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+                minWidth: 0,
+              }
+            : appGridStyle
+        }
+      >
         <div
           style={{
             ...sectionCss,
             marginTop: 0,
             position: isMobile ? 'static' : 'sticky',
             top: isMobile ? undefined : 20,
+            padding: isMobile ? 14 : 20,
+            order: isMobile ? 2 : 0,
           }}
         >
-          <h2 style={{ marginTop: 0 }}>Hypothèses modifiables</h2>
+          <h2 style={{ marginTop: 0, fontSize: isMobile ? 20 : 24 }}>Hypothèses modifiables</h2>
 
           <details open style={{ marginTop: 16 }}>
-            <summary style={summaryStyle()}>Acquisition</summary>
+            <summary style={summaryStyle(isMobile)}>Acquisition</summary>
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
               <div>
                 <label style={labelCss}>Prix d’achat</label>
@@ -895,7 +985,7 @@ export default function HomePage() {
           </details>
 
           <details open style={{ marginTop: 18 }}>
-            <summary style={summaryStyle()}>Exploitation</summary>
+            <summary style={summaryStyle(isMobile)}>Exploitation</summary>
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
               <div>
                 <label style={labelCss}>Loyer mensuel initial</label>
@@ -1022,7 +1112,7 @@ export default function HomePage() {
           </details>
 
           <details open style={{ marginTop: 18 }}>
-            <summary style={summaryStyle()}>Financement et sortie</summary>
+            <summary style={summaryStyle(isMobile)}>Financement et sortie</summary>
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
               <div>
                 <label style={labelCss}>Apport</label>
@@ -1093,74 +1183,87 @@ export default function HomePage() {
           </details>
         </div>
 
-        <div>
-          <details open style={{ ...sectionCss, marginTop: 0 }}>
-            <summary style={summaryStyle()}>Dashboard détaillé</summary>
+        <div style={{ minWidth: 0, order: isMobile ? 1 : 0 }}>
+          <details open style={{ ...sectionCss, marginTop: 0, padding: isMobile ? 14 : 20 }}>
+            <summary style={summaryStyle(isMobile)}>Dashboard détaillé</summary>
 
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: 16,
+                gridTemplateColumns: isSmallMobile
+                  ? '1fr'
+                  : isMobile
+                  ? '1fr 1fr'
+                  : 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: 14,
                 marginTop: 16,
-                marginBottom: 20,
+                marginBottom: 18,
               }}
             >
               <div style={cardCss}>
                 <div style={{ color: '#6b7280', fontSize: 13 }}>Coût total projet</div>
-                <div style={{ fontSize: 28, fontWeight: 700 }}>
+                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, lineHeight: 1.2 }}>
                   {formatCurrency(totalProjectCost)}
                 </div>
               </div>
+
               <div style={cardCss}>
                 <div style={{ color: '#6b7280', fontSize: 13 }}>Cash investi</div>
-                <div style={{ fontSize: 28, fontWeight: 700 }}>
+                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, lineHeight: 1.2 }}>
                   {formatCurrency(initialCashInvested)}
                 </div>
               </div>
+
               <div style={cardCss}>
                 <div style={{ color: '#6b7280', fontSize: 13 }}>Cash-flow mensuel</div>
                 <div
                   style={{
-                    fontSize: 28,
+                    fontSize: isMobile ? 22 : 28,
                     fontWeight: 700,
-                    color: getKpiColor(year1 ? year1.monthlyCashflow : 0, 'cash'),
+                    lineHeight: 1.2,
+                    color: getCashColor(year1 ? year1.monthlyCashflow : 0),
                   }}
                 >
                   {formatCurrency(year1 ? year1.monthlyCashflow : 0)}
                 </div>
               </div>
+
               <div style={cardCss}>
                 <div style={{ color: '#6b7280', fontSize: 13 }}>TRI equity</div>
                 <div
                   style={{
-                    fontSize: 28,
+                    fontSize: isMobile ? 22 : 28,
                     fontWeight: 700,
-                    color: getKpiColor(irr, 'irr'),
+                    lineHeight: 1.2,
+                    color: getIrrColor(irr),
                   }}
                 >
                   {formatPercent(irr)}
                 </div>
               </div>
+
               <div style={cardCss}>
                 <div style={{ color: '#6b7280', fontSize: 13 }}>Rendement brut</div>
                 <div
                   style={{
-                    fontSize: 28,
+                    fontSize: isMobile ? 22 : 28,
                     fontWeight: 700,
-                    color: getKpiColor(grossYield, 'yield'),
+                    lineHeight: 1.2,
+                    color: getGrossYieldColor(grossYield),
                   }}
                 >
                   {formatPercent(grossYield)}
                 </div>
               </div>
+
               <div style={cardCss}>
                 <div style={{ color: '#6b7280', fontSize: 13 }}>Rendement net</div>
                 <div
                   style={{
-                    fontSize: 28,
+                    fontSize: isMobile ? 22 : 28,
                     fontWeight: 700,
-                    color: getKpiColor(netYield, 'yield'),
+                    lineHeight: 1.2,
+                    color: getNetYieldColor(netYield),
                   }}
                 >
                   {formatPercent(netYield)}
@@ -1172,11 +1275,11 @@ export default function HomePage() {
               style={{
                 display: 'grid',
                 gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-                gap: 20,
+                gap: 14,
               }}
             >
               <div style={cardCss}>
-                <h3 style={{ marginTop: 0 }}>Coût d’acquisition</h3>
+                <h3 style={{ marginTop: 0, fontSize: isMobile ? 17 : 18 }}>Coût d’acquisition</h3>
                 <p><strong>Prix net vendeur :</strong> {formatCurrency(scenario.purchasePrice)}</p>
                 <p><strong>Frais de notaire :</strong> {formatCurrency(notaryFees)}</p>
                 <p><strong>Frais de dossier / garantie :</strong> {formatCurrency(scenario.loanFees)}</p>
@@ -1187,7 +1290,7 @@ export default function HomePage() {
               </div>
 
               <div style={cardCss}>
-                <h3 style={{ marginTop: 0 }}>Dette / cash-flow</h3>
+                <h3 style={{ marginTop: 0, fontSize: isMobile ? 17 : 18 }}>Dette / cash-flow</h3>
                 <p><strong>Dette initiale :</strong> {formatCurrency(financedAmount)}</p>
                 <p><strong>Mensualité hors assurance :</strong> {formatCurrency(monthlyPayment)}</p>
                 <p><strong>Assurance mensuelle :</strong> {formatCurrency(monthlyInsurance)}</p>
@@ -1196,10 +1299,11 @@ export default function HomePage() {
               </div>
 
               <div style={cardCss}>
-                <h3 style={{ marginTop: 0 }}>Rendements</h3>
+                <h3 style={{ marginTop: 0, fontSize: isMobile ? 17 : 18 }}>Rendements</h3>
+
                 <p>
                   <strong>Rendement brut initial :</strong>{' '}
-                  <span style={{ color: getKpiColor(grossYield, 'yield'), fontWeight: 700 }}>
+                  <span style={{ color: getGrossYieldColor(grossYield), fontWeight: 700 }}>
                     {formatPercent(grossYield)}
                   </span>
                 </p>
@@ -1209,7 +1313,7 @@ export default function HomePage() {
 
                 <p>
                   <strong>Rendement net initial :</strong>{' '}
-                  <span style={{ color: getKpiColor(netYield, 'yield'), fontWeight: 700 }}>
+                  <span style={{ color: getNetYieldColor(netYield), fontWeight: 700 }}>
                     {formatPercent(netYield)}
                   </span>
                 </p>
@@ -1230,11 +1334,16 @@ export default function HomePage() {
               </div>
 
               <div style={cardCss}>
-                <h3 style={{ marginTop: 0 }}>Sortie / création de valeur</h3>
+                <h3 style={{ marginTop: 0, fontSize: isMobile ? 17 : 18 }}>Sortie / création de valeur</h3>
                 <p><strong>Prix de cession brut :</strong> {formatCurrency(grossSalePrice)}</p>
                 <p><strong>Frais de vente :</strong> {formatCurrency(saleFees)}</p>
                 <p><strong>Net vendeur après dette :</strong> {formatCurrency(netSaleProceeds)}</p>
-                <p><strong>TRI equity :</strong> <span style={{ color: getKpiColor(irr, 'irr'), fontWeight: 700 }}>{formatPercent(irr)}</span></p>
+                <p>
+                  <strong>TRI equity :</strong>{' '}
+                  <span style={{ color: getIrrColor(irr), fontWeight: 700 }}>
+                    {formatPercent(irr)}
+                  </span>
+                </p>
                 <p><strong>Multiple cash-on-cash :</strong> {multipleCashOnCash.toFixed(2)}x</p>
                 <p><strong>Cap Achat :</strong> {formatPercent(capAchat)}</p>
                 <p><strong>Cap Sortie :</strong> {formatPercent(capSortie)}</p>
@@ -1243,13 +1352,15 @@ export default function HomePage() {
             </div>
           </details>
 
-          <details open style={sectionCss}>
-            <summary style={summaryStyle()}>Synthèse des Inputs année 1</summary>
+          <details open style={{ ...sectionCss, padding: isMobile ? 14 : 20 }}>
+            <summary style={summaryStyle(isMobile)}>Synthèse des Inputs année 1</summary>
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                gap: 16,
+                gridTemplateColumns: isMobile
+                  ? '1fr'
+                  : 'repeat(auto-fit, minmax(250px, 1fr))',
+                gap: 14,
                 marginTop: 16,
               }}
             >
@@ -1273,21 +1384,25 @@ export default function HomePage() {
             </div>
           </details>
 
-          <SensitivityTable scenario={scenario} />
-
-          <div style={sectionCss}>
-            <h2 style={{ marginTop: 0 }}>Comparaison de scénarios</h2>
-            <p style={{ color: '#6b7280', marginTop: 0, marginBottom: 16 }}>
-              Les scénarios font varier principalement le loyer, le <strong>taux d’intérêt annuel</strong> et la <strong>prise de valeur annuelle de l’actif</strong>.
-            </p>
-            <ScenarioComparison
-              scenarios={comparisonScenarios}
-              onScenarioChange={updateComparisonScenario}
-            />
+          <div style={{ minWidth: 0 }}>
+            <SensitivityTable scenario={scenario} />
           </div>
 
-          <details open style={sectionCss}>
-            <summary style={summaryStyle()}>Tableau d’exploitation annuelle</summary>
+          <div style={{ ...sectionCss, padding: isMobile ? 14 : 20 }}>
+            <h2 style={{ marginTop: 0, fontSize: isMobile ? 20 : 24 }}>Comparaison de scénarios</h2>
+            <p style={{ color: '#6b7280', marginTop: 0, marginBottom: 16, lineHeight: 1.45 }}>
+              Les scénarios font varier principalement le loyer, le <strong>taux d’intérêt annuel</strong> et la <strong>prise de valeur annuelle de l’actif</strong>.
+            </p>
+            <div style={{ minWidth: 0, overflowX: 'auto' }}>
+              <ScenarioComparison
+                scenarios={comparisonScenarios}
+                onScenarioChange={updateComparisonScenario}
+              />
+            </div>
+          </div>
+
+          <details open style={{ ...sectionCss, padding: isMobile ? 14 : 20 }}>
+            <summary style={summaryStyle(isMobile)}>Tableau d’exploitation annuelle</summary>
 
             <div
               style={{
@@ -1305,31 +1420,40 @@ export default function HomePage() {
                   borderRadius: 10,
                   overflow: 'hidden',
                   background: '#fff',
+                  width: isSmallMobile ? '100%' : 'auto',
                 }}
               >
                 <button
                   type="button"
                   onClick={() => setTableMode('resume')}
-                  style={toggleButtonStyle(tableMode === 'resume')}
+                  style={toggleButtonStyle(tableMode === 'resume', isSmallMobile)}
                 >
                   Mode résumé
                 </button>
                 <button
                   type="button"
                   onClick={() => setTableMode('detail')}
-                  style={toggleButtonStyle(tableMode === 'detail')}
+                  style={toggleButtonStyle(tableMode === 'detail', isSmallMobile)}
                 >
                   Mode détaillé
                 </button>
               </div>
             </div>
 
-            <div style={{ marginTop: 16, overflowX: 'auto' }}>
+            <div
+              style={{
+                marginTop: 16,
+                overflowX: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                maxWidth: '100%',
+                minWidth: 0,
+              }}
+            >
               <table
                 style={{
                   width: '100%',
                   borderCollapse: 'collapse',
-                  minWidth: tableMode === 'resume' ? 1300 : 2200,
+                  minWidth: tableMode === 'resume' ? (isMobile ? 900 : 1300) : (isMobile ? 1200 : 2200),
                 }}
               >
                 <thead>
@@ -1382,14 +1506,13 @@ export default function HomePage() {
                               style={{
                                 ...tdStyle(bg),
                                 color: isAnnualEffort
-                                  ? getKpiColor(row.annualCashflow, 'cash')
+                                  ? getCashColor(row.annualCashflow)
                                   : isMonthlyEffort
-                                  ? getKpiColor(row.monthlyCashflow, 'cash')
+                                  ? getCashColor(row.monthlyCashflow)
                                   : isTotalOpex
                                   ? '#6b7280'
                                   : undefined,
-                                fontWeight:
-                                  isTotalOpex || isStrong ? 700 : 400,
+                                fontWeight: isTotalOpex || isStrong ? 700 : 400,
                               }}
                             >
                               {cells[col]}
@@ -1408,10 +1531,12 @@ export default function HomePage() {
             </p>
           </details>
 
-          <Charts projection={projection} scenario={scenario} />
+          <div style={{ minWidth: 0 }}>
+            <Charts projection={projection} scenario={scenario} />
+          </div>
 
-          <details style={sectionCss}>
-            <summary style={summaryStyle()}>Revente</summary>
+          <details style={{ ...sectionCss, padding: isMobile ? 14 : 20 }}>
+            <summary style={summaryStyle(isMobile)}>Revente</summary>
             <div style={{ marginTop: 16 }}>
               <p><strong>Prix de cession brut :</strong> {formatCurrency(grossSalePrice)}</p>
               <p><strong>Frais de vente :</strong> {formatCurrency(saleFees)}</p>

@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 import {
   calculateInitialCashInvested,
   calculateTotalProjectCost,
@@ -54,12 +56,27 @@ const inputStyle: React.CSSProperties = {
   border: '1px solid #d1d5db',
   fontSize: 13,
   background: '#fff',
+  boxSizing: 'border-box',
 };
 
 export default function ScenarioComparison({
   scenarios,
   onScenarioChange,
 }: Props) {
+  const [viewportWidth, setViewportWidth] = useState<number>(1200);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateWidth = () => setViewportWidth(window.innerWidth);
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
+
+  const isMobile = viewportWidth < 900;
+
   const rows = scenarios.map((scenario) => {
     const totalProjectCost = calculateTotalProjectCost(scenario.data);
     const initialCashInvested = calculateInitialCashInvested(scenario.data);
@@ -97,14 +114,16 @@ export default function ScenarioComparison({
     <div
       style={{
         marginTop: 24,
-        padding: 20,
+        padding: isMobile ? 14 : 20,
         border: '1px solid #e5e7eb',
         borderRadius: 14,
         background: '#fff',
+        boxSizing: 'border-box',
+        minWidth: 0,
       }}
     >
       <h2 style={{ marginTop: 0 }}>Comparaison de scénarios</h2>
-      <p style={{ color: '#6b7280', marginBottom: 20 }}>
+      <p style={{ color: '#6b7280', marginBottom: 20, lineHeight: 1.45 }}>
         Tu peux modifier directement les variables de scénario : <strong>loyer</strong>,{' '}
         <strong>taux</strong> et <strong>prise de valeur annuelle</strong>.
       </p>
@@ -112,9 +131,10 @@ export default function ScenarioComparison({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, minmax(220px, 1fr))',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(220px, 1fr))',
           gap: 16,
           marginBottom: 24,
+          minWidth: 0,
         }}
       >
         {scenarios.map((scenario) => (
@@ -125,6 +145,8 @@ export default function ScenarioComparison({
               borderRadius: 12,
               padding: 16,
               background: '#f9fafb',
+              boxSizing: 'border-box',
+              minWidth: 0,
             }}
           >
             <h3 style={{ marginTop: 0 }}>{scenario.name}</h3>
@@ -136,7 +158,7 @@ export default function ScenarioComparison({
                   style={inputStyle}
                   type="number"
                   value={scenario.data.monthlyRent}
-                  onChange={(e) =>
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onScenarioChange(
                       scenario.id,
                       'monthlyRent',
@@ -153,7 +175,7 @@ export default function ScenarioComparison({
                   type="number"
                   step="0.001"
                   value={scenario.data.annualInterestRate}
-                  onChange={(e) =>
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onScenarioChange(
                       scenario.id,
                       'annualInterestRate',
@@ -170,7 +192,7 @@ export default function ScenarioComparison({
                   type="number"
                   step="0.001"
                   value={scenario.data.annualPriceGrowthRate}
-                  onChange={(e) =>
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     onScenarioChange(
                       scenario.id,
                       'annualPriceGrowthRate',
@@ -184,7 +206,7 @@ export default function ScenarioComparison({
         ))}
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
           <thead>
             <tr style={{ background: '#111827', color: '#fff' }}>

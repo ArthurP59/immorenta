@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   CartesianGrid,
   Legend,
@@ -30,6 +31,24 @@ function formatTooltipValue(value: unknown): string {
 }
 
 export default function Charts({ projection, scenario }: Props) {
+  const [mounted, setMounted] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState<number>(1200);
+
+  useEffect(() => {
+    setMounted(true);
+
+    if (typeof window === 'undefined') return;
+
+    const updateWidth = () => setViewportWidth(window.innerWidth);
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
+
+  const isMobile = viewportWidth < 900;
+  const chartHeight = isMobile ? 280 : 320;
+
   const cashflowData = projection.map((row) => ({
     year: row.year,
     cashflow: Math.round(row.annualCashflow),
@@ -49,73 +68,93 @@ export default function Charts({ projection, scenario }: Props) {
     <div
       style={{
         marginTop: 24,
-        padding: 20,
+        padding: isMobile ? 14 : 20,
         border: '1px solid #e5e7eb',
         borderRadius: 14,
         background: '#fff',
+        boxSizing: 'border-box',
+        minWidth: 0,
       }}
     >
       <h2 style={{ marginTop: 0 }}>Graphiques</h2>
 
-      <div style={{ marginTop: 24 }}>
+      <div style={{ marginTop: 24, minWidth: 0 }}>
         <h3 style={{ marginTop: 0 }}>Cash-flow annuel</h3>
-        <div style={{ width: '100%', height: 320 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={cashflowData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="year" />
-              <YAxis />
-              <Tooltip formatter={formatTooltipValue} />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="cashflow"
-                name="Cash-flow"
-                stroke="#2563eb"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="noi"
-                name="NOI"
-                stroke="#16a34a"
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        <div
+          style={{
+            width: '100%',
+            height: chartHeight,
+            minHeight: chartHeight,
+            minWidth: 0,
+          }}
+        >
+          {mounted ? (
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <LineChart data={cashflowData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="year" />
+                <YAxis width={isMobile ? 60 : 80} />
+                <Tooltip formatter={formatTooltipValue} />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="cashflow"
+                  name="Cash-flow"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="noi"
+                  name="NOI"
+                  stroke="#16a34a"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : null}
         </div>
       </div>
 
-      <div style={{ marginTop: 40 }}>
+      <div style={{ marginTop: 32, minWidth: 0 }}>
         <h3 style={{ marginTop: 0 }}>Capital restant dû vs valeur du bien</h3>
-        <div style={{ width: '100%', height: 320 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={valueData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="year" />
-              <YAxis />
-              <Tooltip formatter={formatTooltipValue} />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="capital"
-                name="Capital restant dû"
-                stroke="#dc2626"
-                strokeWidth={2}
-                dot={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="valeur"
-                name="Valeur du bien"
-                stroke="#7c3aed"
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        <div
+          style={{
+            width: '100%',
+            height: chartHeight,
+            minHeight: chartHeight,
+            minWidth: 0,
+          }}
+        >
+          {mounted ? (
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <LineChart data={valueData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="year" />
+                <YAxis width={isMobile ? 60 : 80} />
+                <Tooltip formatter={formatTooltipValue} />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="capital"
+                  name="Capital restant dû"
+                  stroke="#dc2626"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="valeur"
+                  name="Valeur du bien"
+                  stroke="#7c3aed"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : null}
         </div>
       </div>
     </div>

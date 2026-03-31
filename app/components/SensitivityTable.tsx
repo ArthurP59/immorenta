@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 import {
   calculateCashflows,
   calculateIRR,
@@ -53,6 +55,20 @@ function buildScenario(
 }
 
 export default function SensitivityTable({ scenario }: Props) {
+  const [viewportWidth, setViewportWidth] = useState<number>(1200);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const updateWidth = () => setViewportWidth(window.innerWidth);
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+
+    return () => window.removeEventListener('resize', updateWidth);
+  }, []);
+
+  const isMobile = viewportWidth < 900;
+
   const rentVariations = [-0.1, -0.05, 0, 0.05, 0.1];
   const rateVariations = [-0.005, 0, 0.005];
   const valueVariations = [-0.005, 0, 0.005];
@@ -107,22 +123,25 @@ export default function SensitivityTable({ scenario }: Props) {
     <div
       style={{
         marginTop: 24,
-        padding: 20,
+        padding: isMobile ? 14 : 20,
         border: '1px solid #e5e7eb',
         borderRadius: 14,
         background: '#fff',
+        boxSizing: 'border-box',
+        minWidth: 0,
       }}
     >
       <h2 style={{ marginTop: 0 }}>Analyse de sensibilité</h2>
-      <p style={{ color: '#6b7280', marginBottom: 20 }}>
+      <p style={{ color: '#6b7280', marginBottom: 20, lineHeight: 1.45 }}>
         Impact des variations de loyer, de taux et de prise de valeur sur le cash-flow et le TRI.
       </p>
 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, minmax(260px, 1fr))',
+          gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(260px, 1fr))',
           gap: 16,
+          minWidth: 0,
         }}
       >
         <SensitivityCard
@@ -156,10 +175,13 @@ function SensitivityCard({
         borderRadius: 12,
         padding: 16,
         background: '#f9fafb',
+        boxSizing: 'border-box',
+        minWidth: 0,
+        overflowX: 'auto',
       }}
     >
       <h3 style={{ marginTop: 0 }}>{title}</h3>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 260 }}>
         <thead>
           <tr>
             <th style={thStyle}>Variation</th>
@@ -176,6 +198,7 @@ function SensitivityCard({
                   ...tdStyle,
                   color: getColor(row.cashflow, 'cash'),
                   fontWeight: 700,
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {formatCurrency(row.cashflow)}
@@ -185,6 +208,7 @@ function SensitivityCard({
                   ...tdStyle,
                   color: getColor(row.irr, 'irr'),
                   fontWeight: 700,
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {formatPercent(row.irr)}
@@ -202,6 +226,7 @@ const thStyle: React.CSSProperties = {
   padding: 8,
   fontSize: 12,
   borderBottom: '1px solid #d1d5db',
+  whiteSpace: 'nowrap',
 };
 
 const tdStyle: React.CSSProperties = {
