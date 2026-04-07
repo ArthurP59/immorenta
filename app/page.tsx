@@ -683,7 +683,7 @@ export default function HomePage() {
                 lineHeight: 1.1,
               }}
             >
-              ImmoRenta
+              RentablImmo
             </h1>
             <p
               style={{
@@ -924,7 +924,7 @@ export default function HomePage() {
             <summary style={summaryStyle(isMobile)}>Acquisition</summary>
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
               <div>
-                <label style={labelCss}>Prix d’achat</label>
+                <label style={labelCss}>Prix d’achat (Frais agence acquéreur inclus)</label>
                 <input
                   style={inputCss}
                   type="number"
@@ -961,7 +961,7 @@ export default function HomePage() {
                 />
               </div>
               <div>
-                <label style={labelCss}>Frais de dossier / garantie</label>
+                <label style={labelCss}>Frais de dossier crédit</label>
                 <input
                   style={inputCss}
                   type="number"
@@ -988,7 +988,7 @@ export default function HomePage() {
             <summary style={summaryStyle(isMobile)}>Exploitation</summary>
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
               <div>
-                <label style={labelCss}>Loyer mensuel initial</label>
+                <label style={labelCss}>Loyer mensuel hors charges</label>
                 <input
                   style={inputCss}
                   type="number"
@@ -1280,9 +1280,9 @@ export default function HomePage() {
             >
               <div style={cardCss}>
                 <h3 style={{ marginTop: 0, fontSize: isMobile ? 17 : 18 }}>Coût d’acquisition</h3>
-                <p><strong>Prix net vendeur :</strong> {formatCurrency(scenario.purchasePrice)}</p>
+                <p><strong>Prix FAI :</strong> {formatCurrency(scenario.purchasePrice)}</p>
                 <p><strong>Frais de notaire :</strong> {formatCurrency(notaryFees)}</p>
-                <p><strong>Frais de dossier / garantie :</strong> {formatCurrency(scenario.loanFees)}</p>
+                <p><strong>Frais de dossier crédit :</strong> {formatCurrency(scenario.loanFees)}</p>
                 <p><strong>Mobilier :</strong> {formatCurrency(scenario.furniture)}</p>
                 <p><strong>Travaux :</strong> {formatCurrency(scenario.works)}</p>
                 <p><strong>Coût total projet :</strong> {formatCurrency(totalProjectCost)}</p>
@@ -1391,7 +1391,7 @@ export default function HomePage() {
           <div style={{ ...sectionCss, padding: isMobile ? 14 : 20 }}>
             <h2 style={{ marginTop: 0, fontSize: isMobile ? 20 : 24 }}>Comparaison de scénarios</h2>
             <p style={{ color: '#6b7280', marginTop: 0, marginBottom: 16, lineHeight: 1.45 }}>
-              Les scénarios font varier principalement le loyer, le <strong>taux d’intérêt annuel</strong> et la <strong>prise de valeur annuelle de l’actif</strong>.
+              Les scénarios font varier principalement le loyer, le <strong>taux nominal intérêt</strong> et la <strong>prise de valeur annuelle de l’actif</strong>.
             </p>
             <div style={{ minWidth: 0, overflowX: 'auto' }}>
               <ScenarioComparison

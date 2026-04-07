@@ -125,7 +125,7 @@ export default function ScenarioComparison({
       <h2 style={{ marginTop: 0 }}>Comparaison de scénarios</h2>
       <p style={{ color: '#6b7280', marginBottom: 20, lineHeight: 1.45 }}>
         Tu peux modifier directement les variables de scénario : <strong>loyer</strong>,{' '}
-        <strong>taux</strong> et <strong>prise de valeur annuelle</strong>.
+        <strong>taux nominal intérêt</strong> et <strong>prise de valeur annuelle</strong>.
       </p>
 
       <div
@@ -169,7 +169,7 @@ export default function ScenarioComparison({
               </div>
 
               <div>
-                <label style={labelStyle}>Taux annuel</label>
+                <label style={labelStyle}>Taux nominal intérêt</label>
                 <input
                   style={inputStyle}
                   type="number"
@@ -212,7 +212,7 @@ export default function ScenarioComparison({
             <tr style={{ background: '#111827', color: '#fff' }}>
               <th style={thStyle}>Scénario</th>
               <th style={thStyle}>Loyer</th>
-              <th style={thStyle}>Taux</th>
+              <th style={thStyle}>Taux nominal intérêt</th>
               <th style={thStyle}>Prise de valeur</th>
               <th style={thStyle}>Coût total</th>
               <th style={thStyle}>Cash investi</th>

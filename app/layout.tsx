@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 
 export const metadata: Metadata = {
-  title: 'ImmoRenta',
+  title: 'RentablImmo',
   description: 'Simulez, comparez et pilotez vos investissements locatifs.',
 };
 
