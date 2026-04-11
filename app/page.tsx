@@ -57,6 +57,105 @@ import {
   type SavedSimulation,
 } from '@/lib/simulations';
 
+type GlossaryItem = {
+  title: string;
+  short: string;
+  full: string;
+};
+
+const GLOSSARY: Record<string, GlossaryItem> = {
+  vacance: {
+    title: 'Vacance locative',
+    short: 'Période pendant laquelle le bien n’est pas loué.',
+    full:
+      "La vacance locative représente la part de l'année pendant laquelle ton logement ne génère pas de loyer. Plus elle est élevée, plus les loyers réellement encaissés diminuent. Dans un prévisionnel, elle permet d’éviter d’être trop optimiste.",
+  },
+  opex: {
+    title: 'Opex',
+    short: "Charges d’exploitation du bien.",
+    full:
+      "Les opex correspondent aux dépenses nécessaires au fonctionnement du bien : copropriété non récupérable, taxe foncière, assurance PNO, gestion locative, maintenance, comptabilité, autres charges, etc. Elles viennent réduire la rentabilité nette.",
+  },
+  noi: {
+    title: 'NOI',
+    short: "Revenu net d’exploitation avant dette.",
+    full:
+      "Le NOI (Net Operating Income) correspond aux loyers encaissés diminués des charges d’exploitation, mais avant remboursement du crédit. C’est un indicateur central pour mesurer la performance économique pure du bien.",
+  },
+  tri: {
+    title: 'TRI',
+    short: "Taux de rentabilité annuel global de l’investissement.",
+    full:
+      "Le TRI (Taux de Rendement Interne) mesure la rentabilité globale d’un investissement en tenant compte de tous les flux : apport initial, cash-flows annuels, revente finale. Plus il est élevé, plus l’investissement est performant. C’est l’un des indicateurs les plus complets.",
+  },
+  rendementBrut: {
+    title: 'Rendement brut',
+    short: 'Loyer annuel / coût total projet.',
+    full:
+      "Le rendement brut compare le loyer annuel théorique au coût total du projet. Il donne une première idée rapide du potentiel du bien, mais il ne tient pas compte des charges, de la vacance ou du financement.",
+  },
+  rendementNet: {
+    title: 'Rendement net',
+    short: 'NOI / coût total projet.',
+    full:
+      "Le rendement net tient compte des charges d’exploitation. Il est plus réaliste que le rendement brut, car il reflète mieux ce que produit réellement le bien avant remboursement de la dette.",
+  },
+  cashflow: {
+    title: 'Cash-flow',
+    short: 'Ce qu’il reste chaque mois après charges et dette.',
+    full:
+      "Le cash-flow correspond à l’argent restant après perception des loyers, paiement des charges et remboursement du crédit. Positif, il signifie que le bien s’autofinance en partie ou totalement. Négatif, il faut remettre de l’argent chaque mois.",
+  },
+  effort: {
+    title: "Effort d’épargne",
+    short: "Somme à remettre de sa poche pour équilibrer l’opération.",
+    full:
+      "L’effort d’épargne correspond au montant que l’investisseur doit ajouter lorsque le cash-flow est négatif. C’est très utile pour savoir si l’opération reste supportable au quotidien.",
+  },
+  crd: {
+    title: 'CRD',
+    short: 'Capital restant dû au prêt.',
+    full:
+      "Le CRD est le capital restant dû à la banque à une date donnée. Il diminue progressivement au fil des mensualités. En cas de revente, il faut généralement le rembourser avec le produit de cession.",
+  },
+  tauxNominal: {
+    title: 'Taux nominal intérêt',
+    short: 'Taux d’intérêt du crédit hors assurance.',
+    full:
+      "Le taux nominal intérêt est le taux appliqué par la banque sur le capital emprunté, hors assurance emprunteur. Il influence directement le coût du financement et donc la mensualité.",
+  },
+  assurance: {
+    title: 'Assurance emprunteur',
+    short: 'Assurance liée au crédit immobilier.',
+    full:
+      "L’assurance emprunteur couvre certains risques comme le décès, l’invalidité ou parfois l’incapacité. Elle s’ajoute à la mensualité du prêt et doit être intégrée dans le coût réel du financement.",
+  },
+  capAchat: {
+    title: 'Cap achat',
+    short: 'NOI initial / prix d’achat.',
+    full:
+      "Le cap rate à l’achat compare le NOI initial à la valeur d’acquisition. Il permet d’évaluer rapidement la performance économique du bien au moment de l’achat.",
+  },
+  capSortie: {
+    title: 'Cap sortie',
+    short: 'NOI de sortie / valeur de revente.',
+    full:
+      "Le cap rate de sortie permet d’apprécier la valorisation du bien à la revente. Il est souvent utilisé pour juger si le prix de sortie est cohérent avec le revenu produit par le bien.",
+  },
+  multiple: {
+    title: 'Multiple cash-on-cash',
+    short: 'Combien de fois l’apport est récupéré.',
+    full:
+      "Le multiple cash-on-cash mesure combien de fois l’investisseur récupère sa mise initiale sur toute la durée du projet. Par exemple, 2,0x signifie que l’apport a été récupéré deux fois.",
+  },
+  prixFai: {
+    title: 'Prix FAI',
+    short: 'Prix frais d’agence inclus.',
+    full:
+      "Le prix FAI est le prix d’achat incluant les frais d’agence lorsque ceux-ci sont supportés par l’acquéreur. C’est ce montant qu’il faut bien intégrer dans le coût global de l’opération.",
+  },
+};
+
 function formatCurrency(value: number): string {
   return value.toLocaleString('fr-FR', {
     style: 'currency',
@@ -286,6 +385,117 @@ function buildComparisonScenarios(baseScenario: ScenarioInput) {
   ];
 }
 
+function GlossaryInline({
+  termKey,
+  activeTerm,
+  onToggle,
+}: {
+  termKey: keyof typeof GLOSSARY;
+  activeTerm: string | null;
+  onToggle: (term: string) => void;
+}) {
+  const item = GLOSSARY[termKey];
+  const isOpen = activeTerm === termKey;
+
+  return (
+    <span style={{ display: 'inline-block' }}>
+      <button
+        type="button"
+        onClick={() => onToggle(termKey)}
+        style={{
+          border: 'none',
+          background: 'transparent',
+          padding: 0,
+          margin: 0,
+          color: '#2563eb',
+          fontWeight: 700,
+          cursor: 'pointer',
+          textDecoration: 'underline',
+          fontSize: 'inherit',
+        }}
+      >
+        {item.title}
+      </button>
+      {isOpen ? (
+        <span
+          style={{
+            display: 'block',
+            marginTop: 8,
+            padding: 12,
+            border: '1px solid #dbeafe',
+            borderRadius: 10,
+            background: '#eff6ff',
+            color: '#1f2937',
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong>{item.title} :</strong> {item.full}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function GlossaryGuide({
+  activeTerm,
+  onToggle,
+}: {
+  activeTerm: string | null;
+  onToggle: (term: string) => void;
+}) {
+  const entries = Object.entries(GLOSSARY);
+
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      {entries.map(([key, item]) => {
+        const isOpen = activeTerm === key;
+        return (
+          <div
+            key={key}
+            style={{
+              border: '1px solid #e5e7eb',
+              borderRadius: 12,
+              background: '#fff',
+              overflow: 'hidden',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => onToggle(key)}
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                border: 'none',
+                background: isOpen ? '#eff6ff' : '#fff',
+                padding: '14px 16px',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ fontWeight: 700, color: '#111827' }}>{item.title}</div>
+              <div style={{ color: '#6b7280', fontSize: 13, marginTop: 4 }}>{item.short}</div>
+            </button>
+
+            {isOpen ? (
+              <div
+                style={{
+                  padding: '0 16px 16px 16px',
+                  color: '#374151',
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                  background: '#eff6ff',
+                }}
+              >
+                {item.full}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -299,6 +509,7 @@ export default function HomePage() {
   const [simulationsError, setSimulationsError] = useState<string | null>(null);
   const [uiMessage, setUiMessage] = useState<string | null>(null);
   const [viewportWidth, setViewportWidth] = useState<number>(1200);
+  const [activeGlossaryTerm, setActiveGlossaryTerm] = useState<string | null>(null);
 
   const [comparisonScenarios, setComparisonScenarios] = useState<
     { id: string; name: string; data: ScenarioInput }[]
@@ -342,6 +553,10 @@ export default function HomePage() {
     }),
     [isMobile],
   );
+
+  function toggleGlossary(term: string) {
+    setActiveGlossaryTerm((prev) => (prev === term ? null : term));
+  }
 
   function rebuildComparisonScenarios(baseScenario: ScenarioInput) {
     setComparisonScenarios(buildComparisonScenarios(baseScenario));
@@ -683,7 +898,7 @@ export default function HomePage() {
                 lineHeight: 1.1,
               }}
             >
-              RentablImmo
+              Rentab&apos;Immo
             </h1>
             <p
               style={{
@@ -1215,7 +1430,13 @@ export default function HomePage() {
               </div>
 
               <div style={cardCss}>
-                <div style={{ color: '#6b7280', fontSize: 13 }}>Cash-flow mensuel</div>
+                <div style={{ color: '#6b7280', fontSize: 13 }}>
+                  <GlossaryInline
+                    termKey="cashflow"
+                    activeTerm={activeGlossaryTerm}
+                    onToggle={toggleGlossary}
+                  />
+                </div>
                 <div
                   style={{
                     fontSize: isMobile ? 22 : 28,
@@ -1229,7 +1450,13 @@ export default function HomePage() {
               </div>
 
               <div style={cardCss}>
-                <div style={{ color: '#6b7280', fontSize: 13 }}>TRI equity</div>
+                <div style={{ color: '#6b7280', fontSize: 13 }}>
+                  <GlossaryInline
+                    termKey="tri"
+                    activeTerm={activeGlossaryTerm}
+                    onToggle={toggleGlossary}
+                  />
+                </div>
                 <div
                   style={{
                     fontSize: isMobile ? 22 : 28,
@@ -1243,7 +1470,13 @@ export default function HomePage() {
               </div>
 
               <div style={cardCss}>
-                <div style={{ color: '#6b7280', fontSize: 13 }}>Rendement brut</div>
+                <div style={{ color: '#6b7280', fontSize: 13 }}>
+                  <GlossaryInline
+                    termKey="rendementBrut"
+                    activeTerm={activeGlossaryTerm}
+                    onToggle={toggleGlossary}
+                  />
+                </div>
                 <div
                   style={{
                     fontSize: isMobile ? 22 : 28,
@@ -1257,7 +1490,13 @@ export default function HomePage() {
               </div>
 
               <div style={cardCss}>
-                <div style={{ color: '#6b7280', fontSize: 13 }}>Rendement net</div>
+                <div style={{ color: '#6b7280', fontSize: 13 }}>
+                  <GlossaryInline
+                    termKey="rendementNet"
+                    activeTerm={activeGlossaryTerm}
+                    onToggle={toggleGlossary}
+                  />
+                </div>
                 <div
                   style={{
                     fontSize: isMobile ? 22 : 28,
@@ -1280,7 +1519,17 @@ export default function HomePage() {
             >
               <div style={cardCss}>
                 <h3 style={{ marginTop: 0, fontSize: isMobile ? 17 : 18 }}>Coût d’acquisition</h3>
-                <p><strong>Prix FAI :</strong> {formatCurrency(scenario.purchasePrice)}</p>
+                <p>
+                  <strong>
+                    <GlossaryInline
+                      termKey="prixFai"
+                      activeTerm={activeGlossaryTerm}
+                      onToggle={toggleGlossary}
+                    />
+                    {' :'}
+                  </strong>{' '}
+                  {formatCurrency(scenario.purchasePrice)}
+                </p>
                 <p><strong>Frais de notaire :</strong> {formatCurrency(notaryFees)}</p>
                 <p><strong>Frais de dossier crédit :</strong> {formatCurrency(scenario.loanFees)}</p>
                 <p><strong>Mobilier :</strong> {formatCurrency(scenario.furniture)}</p>
@@ -1293,7 +1542,17 @@ export default function HomePage() {
                 <h3 style={{ marginTop: 0, fontSize: isMobile ? 17 : 18 }}>Dette / cash-flow</h3>
                 <p><strong>Dette initiale :</strong> {formatCurrency(financedAmount)}</p>
                 <p><strong>Mensualité hors assurance :</strong> {formatCurrency(monthlyPayment)}</p>
-                <p><strong>Assurance mensuelle :</strong> {formatCurrency(monthlyInsurance)}</p>
+                <p>
+                  <strong>
+                    <GlossaryInline
+                      termKey="assurance"
+                      activeTerm={activeGlossaryTerm}
+                      onToggle={toggleGlossary}
+                    />
+                    {' :'}
+                  </strong>{' '}
+                  {formatCurrency(monthlyInsurance)}
+                </p>
                 <p><strong>Mensualité totale :</strong> {formatCurrency(monthlyDebt)}</p>
                 <p><strong>Service de la dette année 1 :</strong> {formatCurrency(year1 ? year1.annualDebtService : 0)}</p>
               </div>
@@ -1302,7 +1561,14 @@ export default function HomePage() {
                 <h3 style={{ marginTop: 0, fontSize: isMobile ? 17 : 18 }}>Rendements</h3>
 
                 <p>
-                  <strong>Rendement brut initial :</strong>{' '}
+                  <strong>
+                    <GlossaryInline
+                      termKey="rendementBrut"
+                      activeTerm={activeGlossaryTerm}
+                      onToggle={toggleGlossary}
+                    />
+                    {' :'}
+                  </strong>{' '}
                   <span style={{ color: getGrossYieldColor(grossYield), fontWeight: 700 }}>
                     {formatPercent(grossYield)}
                   </span>
@@ -1312,23 +1578,66 @@ export default function HomePage() {
                 </p>
 
                 <p>
-                  <strong>Rendement net initial :</strong>{' '}
+                  <strong>
+                    <GlossaryInline
+                      termKey="rendementNet"
+                      activeTerm={activeGlossaryTerm}
+                      onToggle={toggleGlossary}
+                    />
+                    {' :'}
+                  </strong>{' '}
                   <span style={{ color: getNetYieldColor(netYield), fontWeight: 700 }}>
                     {formatPercent(netYield)}
                   </span>
                 </p>
                 <p style={subtleNoteCss}>
-                  Correspond au NOI / coût total projet. Le NOI correspond aux loyers moins les charges d’exploitation.
+                  Correspond au{' '}
+                  <GlossaryInline
+                    termKey="noi"
+                    activeTerm={activeGlossaryTerm}
+                    onToggle={toggleGlossary}
+                  />{' '}
+                  / coût total projet.
                 </p>
 
-                <p><strong>Vacance économique :</strong> {formatPercent(economicVacancy)}</p>
+                <p>
+                  <strong>
+                    <GlossaryInline
+                      termKey="vacance"
+                      activeTerm={activeGlossaryTerm}
+                      onToggle={toggleGlossary}
+                    />
+                    {' :'}
+                  </strong>{' '}
+                  {formatPercent(economicVacancy)}
+                </p>
 
-                <p><strong>Opex ratio :</strong> {formatPercent(opexRatio)}</p>
+                <p>
+                  <strong>
+                    <GlossaryInline
+                      termKey="opex"
+                      activeTerm={activeGlossaryTerm}
+                      onToggle={toggleGlossary}
+                    />
+                    {' ratio :'}
+                  </strong>{' '}
+                  {formatPercent(opexRatio)}
+                </p>
                 <p style={subtleNoteCss}>
                   Correspond aux charges d’exploitation / loyer.
                 </p>
 
-                <p><strong>Effort épargne mensuel moy. :</strong> {formatCurrency(avgMonthlyEffort)}</p>
+                <p>
+                  <strong>
+                    <GlossaryInline
+                      termKey="effort"
+                      activeTerm={activeGlossaryTerm}
+                      onToggle={toggleGlossary}
+                    />
+                    {' moyen :'}
+                  </strong>{' '}
+                  {formatCurrency(avgMonthlyEffort)}
+                </p>
                 <p><strong>Intérêts annuels moyens sur détention :</strong> {formatCurrency(avgInterest)}</p>
                 <p><strong>Intérêts année 1 :</strong> {formatCurrency(year1 ? year1.annualInterest : 0)}</p>
               </div>
@@ -1339,14 +1648,51 @@ export default function HomePage() {
                 <p><strong>Frais de vente :</strong> {formatCurrency(saleFees)}</p>
                 <p><strong>Net vendeur après dette :</strong> {formatCurrency(netSaleProceeds)}</p>
                 <p>
-                  <strong>TRI equity :</strong>{' '}
+                  <strong>
+                    <GlossaryInline
+                      termKey="tri"
+                      activeTerm={activeGlossaryTerm}
+                      onToggle={toggleGlossary}
+                    />
+                    {' equity :'}
+                  </strong>{' '}
                   <span style={{ color: getIrrColor(irr), fontWeight: 700 }}>
                     {formatPercent(irr)}
                   </span>
                 </p>
-                <p><strong>Multiple cash-on-cash :</strong> {multipleCashOnCash.toFixed(2)}x</p>
-                <p><strong>Cap Achat :</strong> {formatPercent(capAchat)}</p>
-                <p><strong>Cap Sortie :</strong> {formatPercent(capSortie)}</p>
+                <p>
+                  <strong>
+                    <GlossaryInline
+                      termKey="multiple"
+                      activeTerm={activeGlossaryTerm}
+                      onToggle={toggleGlossary}
+                    />
+                    {' :'}
+                  </strong>{' '}
+                  {multipleCashOnCash.toFixed(2)}x
+                </p>
+                <p>
+                  <strong>
+                    <GlossaryInline
+                      termKey="capAchat"
+                      activeTerm={activeGlossaryTerm}
+                      onToggle={toggleGlossary}
+                    />
+                    {' :'}
+                  </strong>{' '}
+                  {formatPercent(capAchat)}
+                </p>
+                <p>
+                  <strong>
+                    <GlossaryInline
+                      termKey="capSortie"
+                      activeTerm={activeGlossaryTerm}
+                      onToggle={toggleGlossary}
+                    />
+                    {' :'}
+                  </strong>{' '}
+                  {formatPercent(capSortie)}
+                </p>
                 <p><strong>Gain Cap rate :</strong> {formatPercent(gainCapRate)}</p>
               </div>
             </div>
@@ -1391,7 +1737,13 @@ export default function HomePage() {
           <div style={{ ...sectionCss, padding: isMobile ? 14 : 20 }}>
             <h2 style={{ marginTop: 0, fontSize: isMobile ? 20 : 24 }}>Comparaison de scénarios</h2>
             <p style={{ color: '#6b7280', marginTop: 0, marginBottom: 16, lineHeight: 1.45 }}>
-              Les scénarios font varier principalement le loyer, le <strong>taux nominal intérêt</strong> et la <strong>prise de valeur annuelle de l’actif</strong>.
+              Les scénarios font varier principalement le loyer, le{' '}
+              <GlossaryInline
+                termKey="tauxNominal"
+                activeTerm={activeGlossaryTerm}
+                onToggle={toggleGlossary}
+              />{' '}
+              et la prise de valeur annuelle de l’actif.
             </p>
             <div style={{ minWidth: 0, overflowX: 'auto' }}>
               <ScenarioComparison
@@ -1527,7 +1879,13 @@ export default function HomePage() {
             </div>
 
             <p style={{ fontStyle: 'italic', color: '#6b7280', marginTop: 12 }}>
-              CRD = Capital restant dû.
+              CRD ={' '}
+              <GlossaryInline
+                termKey="crd"
+                activeTerm={activeGlossaryTerm}
+                onToggle={toggleGlossary}
+              />
+              .
             </p>
           </details>
 
@@ -1547,6 +1905,20 @@ export default function HomePage() {
               <p><strong>Flux TRI :</strong> {cashflows.map(formatCurrency).join(' | ')}</p>
             </div>
           </details>
+
+          <section style={{ ...sectionCss, padding: isMobile ? 14 : 20 }}>
+            <h2 style={{ marginTop: 0, fontSize: isMobile ? 20 : 24 }}>
+              Guide / Lexique immobilier
+            </h2>
+            <p style={{ color: '#6b7280', lineHeight: 1.5 }}>
+              Cette section permet à un débutant de comprendre les principales notions affichées
+              dans le simulateur. Tu peux cliquer sur chaque terme pour afficher son explication.
+            </p>
+            <GlossaryGuide
+              activeTerm={activeGlossaryTerm}
+              onToggle={toggleGlossary}
+            />
+          </section>
         </div>
       </div>
     </main>
