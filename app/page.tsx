@@ -398,33 +398,50 @@ function GlossaryInline({
   const isOpen = activeTerm === termKey;
 
   return (
-    <span style={{ display: 'inline-block' }}>
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        flexWrap: 'wrap',
+      }}
+    >
+      <span>{item.title}</span>
       <button
         type="button"
         onClick={() => onToggle(termKey)}
+        aria-label={`Afficher l'explication de ${item.title}`}
+        title={`Afficher l'explication de ${item.title}`}
         style={{
-          border: 'none',
-          background: 'transparent',
-          padding: 0,
-          margin: 0,
-          color: '#2563eb',
+          width: 18,
+          height: 18,
+          minWidth: 18,
+          borderRadius: '50%',
+          border: '1px solid #9ca3af',
+          background: isOpen ? '#111827' : '#fff',
+          color: isOpen ? '#fff' : '#6b7280',
+          fontSize: 11,
           fontWeight: 700,
+          lineHeight: 1,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           cursor: 'pointer',
-          textDecoration: 'underline',
-          fontSize: 'inherit',
+          padding: 0,
         }}
       >
-        {item.title}
+        i
       </button>
       {isOpen ? (
         <span
           style={{
             display: 'block',
+            width: '100%',
             marginTop: 8,
             padding: 12,
-            border: '1px solid #dbeafe',
+            border: '1px solid #d1d5db',
             borderRadius: 10,
-            background: '#eff6ff',
+            background: '#f9fafb',
             color: '#1f2937',
             fontSize: 13,
             lineHeight: 1.5,
@@ -467,7 +484,7 @@ function GlossaryGuide({
                 width: '100%',
                 textAlign: 'left',
                 border: 'none',
-                background: isOpen ? '#eff6ff' : '#fff',
+                background: isOpen ? '#f3f4f6' : '#fff',
                 padding: '14px 16px',
                 cursor: 'pointer',
               }}
@@ -483,7 +500,7 @@ function GlossaryGuide({
                   color: '#374151',
                   fontSize: 14,
                   lineHeight: 1.6,
-                  background: '#eff6ff',
+                  background: '#f3f4f6',
                 }}
               >
                 {item.full}
