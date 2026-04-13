@@ -9,6 +9,12 @@ import {
   registerWithEmail,
 } from '@/lib/auth';
 
+const ASSISTANCE_URL =
+  'https://gentle-reading-2ec.notion.site/Assitance-RentablImmo-33b95a36084a80d19646e5df46184e61?source=copy_link';
+
+const PRIVACY_URL =
+  'https://gentle-reading-2ec.notion.site/Politique-de-confidentialit-ImmoRenta-33795a36084a80b08c26c11174293cb7';
+
 export default function AuthPanel({ user }: { user: User | null }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
@@ -83,7 +89,9 @@ export default function AuthPanel({ user }: { user: User | null }) {
       }}
     >
       <a
-        href="/politique-confidentialite"
+        href={PRIVACY_URL}
+        target="_blank"
+        rel="noopener noreferrer"
         style={{
           color: '#2563eb',
           textDecoration: 'none',
@@ -95,7 +103,9 @@ export default function AuthPanel({ user }: { user: User | null }) {
       </a>
 
       <a
-        href="/assistance"
+        href={ASSISTANCE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
         style={{
           color: '#2563eb',
           textDecoration: 'none',
