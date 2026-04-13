@@ -2,13 +2,19 @@
 
 import { useState } from 'react';
 import type { User } from 'firebase/auth';
-import { loginWithEmail, logout, registerWithEmail } from '@/lib/auth';
+import {
+  deleteAccountAndUserData,
+  loginWithEmail,
+  logout,
+  registerWithEmail,
+} from '@/lib/auth';
 
 export default function AuthPanel({ user }: { user: User | null }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   async function handleSubmit() {
     try {
@@ -45,37 +51,129 @@ export default function AuthPanel({ user }: { user: User | null }) {
     }
   }
 
-  if (user) {
-    return (
-      <div
+  async function handleDeleteAccount() {
+    const confirmed = window.confirm(
+      'Supprimer définitivement votre compte et vos simulations ? Cette action est irréversible.',
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingAccount(true);
+      await deleteAccountAndUserData();
+      alert('Votre compte et vos données ont bien été supprimés.');
+    } catch (error: any) {
+      console.error(error);
+      alert(
+        error?.message ??
+          "Impossible de supprimer le compte. Reconnectez-vous puis réessayez.",
+      );
+    } finally {
+      setDeletingAccount(false);
+    }
+  }
+
+  const linksBlock = (
+    <div
+      style={{
+        display: 'flex',
+        gap: 12,
+        flexWrap: 'wrap',
+        marginTop: 12,
+      }}
+    >
+      <a
+        href="/politique-confidentialite"
         style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 12,
-          flexWrap: 'wrap',
+          color: '#2563eb',
+          textDecoration: 'none',
+          fontWeight: 600,
+          fontSize: 14,
         }}
       >
-        <div>
-          <div style={{ fontSize: 12, color: '#6b7280' }}>Connecté avec</div>
-          <div style={{ fontWeight: 700 }}>{user.email}</div>
-        </div>
+        Politique de confidentialité
+      </a>
 
-        <button
-          type="button"
-          onClick={() => logout()}
+      <a
+        href="/assistance"
+        style={{
+          color: '#2563eb',
+          textDecoration: 'none',
+          fontWeight: 600,
+          fontSize: 14,
+        }}
+      >
+        Assistance
+      </a>
+    </div>
+  );
+
+  if (user) {
+    return (
+      <div style={{ display: 'grid', gap: 12 }}>
+        <div
           style={{
-            padding: '10px 14px',
-            border: 'none',
-            borderRadius: 10,
-            background: '#111827',
-            color: '#fff',
-            cursor: 'pointer',
-            fontWeight: 600,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
           }}
         >
-          Se déconnecter
-        </button>
+          <div>
+            <div style={{ fontSize: 12, color: '#6b7280' }}>Connecté avec</div>
+            <div style={{ fontWeight: 700 }}>{user.email}</div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => logout()}
+              style={{
+                padding: '10px 14px',
+                border: 'none',
+                borderRadius: 10,
+                background: '#111827',
+                color: '#fff',
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              Se déconnecter
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDeleteAccount}
+              disabled={deletingAccount}
+              style={{
+                padding: '10px 14px',
+                border: '1px solid #fecaca',
+                borderRadius: 10,
+                background: '#fff',
+                color: '#b91c1c',
+                cursor: deletingAccount ? 'not-allowed' : 'pointer',
+                fontWeight: 600,
+                opacity: deletingAccount ? 0.7 : 1,
+              }}
+            >
+              {deletingAccount ? 'Suppression...' : 'Supprimer mon compte'}
+            </button>
+          </div>
+        </div>
+
+        <div
+          style={{
+            fontSize: 13,
+            color: '#6b7280',
+            lineHeight: 1.5,
+          }}
+        >
+          La suppression du compte efface également les simulations enregistrées
+          associées à ce compte.
+        </div>
+
+        {linksBlock}
       </div>
     );
   }
@@ -167,6 +265,8 @@ export default function AuthPanel({ user }: { user: User | null }) {
           ? 'Créer mon compte'
           : 'Me connecter'}
       </button>
+
+      {linksBlock}
     </div>
   );
 }

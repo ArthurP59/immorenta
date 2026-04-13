@@ -90,3 +90,14 @@ export async function renameSimulation(
 export async function deleteSimulation(simulationId: string): Promise<void> {
   await deleteDoc(doc(db, COLLECTION_NAME, simulationId));
 }
+
+export async function deleteAllUserSimulations(userId: string): Promise<void> {
+  const q = query(
+    collection(db, COLLECTION_NAME),
+    where('userId', '==', userId),
+  );
+
+  const snapshot = await getDocs(q);
+
+  await Promise.all(snapshot.docs.map((docItem) => deleteDoc(docItem.ref)));
+}
