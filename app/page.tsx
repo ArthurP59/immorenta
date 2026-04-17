@@ -857,25 +857,47 @@ export default function HomePage() {
     setUiMessage('✅ Retour au scénario par défaut');
   }
 
-  async function handleExportPdf() {
-    const pdfElement = document.getElementById('pdf-bankable-export');
-    if (!pdfElement) return;
+async function handleExportPdf() {
+  const pdfElement = document.getElementById('pdf-bankable-export');
+  if (!pdfElement) return;
 
-    const html2pdfModule = await import('html2pdf.js');
-    const html2pdf = (html2pdfModule as any).default ?? html2pdfModule;
+  const html2pdfModule = await import('html2pdf.js');
+  const html2pdf = (html2pdfModule as any).default ?? html2pdfModule;
 
-    await html2pdf()
-      .set({
-        margin: 8,
-        filename: `rentab-immo-synthese-${scenario.name || 'simulation'}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all'] },
-      })
-      .from(pdfElement)
-      .save();
-  }
+  const originalOpacity = pdfElement.style.opacity;
+  const originalZIndex = pdfElement.style.zIndex;
+  const originalPointerEvents = pdfElement.style.pointerEvents;
+
+  pdfElement.style.opacity = '1';
+  pdfElement.style.zIndex = '9999';
+  pdfElement.style.pointerEvents = 'none';
+
+  await new Promise((resolve) => setTimeout(resolve, 150));
+
+  await html2pdf()
+    .set({
+      margin: 8,
+      filename: `rentab-immo-synthese-${scenario.name || 'simulation'}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      },
+      jsPDF: {
+        unit: 'mm',
+        format: 'a4',
+        orientation: 'portrait',
+      },
+      pagebreak: { mode: ['avoid-all', 'css'] },
+    })
+    .from(pdfElement)
+    .save();
+
+  pdfElement.style.opacity = originalOpacity;
+  pdfElement.style.zIndex = originalZIndex;
+  pdfElement.style.pointerEvents = originalPointerEvents;
+}
 
   const notaryFees = calculateNotaryFees(scenario);
   const totalProjectCost = calculateTotalProjectCost(scenario);
@@ -1988,20 +2010,23 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div
-        id="pdf-bankable-export"
-        style={{
-          position: 'fixed',
-          left: '-99999px',
-          top: 0,
-          width: '794px',
-          background: '#ffffff',
-          color: '#111827',
-          padding: '28px 32px',
-          boxSizing: 'border-box',
-          fontFamily: 'Arial, sans-serif',
-        }}
-      >
+<div
+  id="pdf-bankable-export"
+  style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    width: '794px',
+    background: '#ffffff',
+    color: '#111827',
+    padding: '28px 32px',
+    boxSizing: 'border-box',
+    fontFamily: 'Arial, sans-serif',
+    zIndex: -1,
+    opacity: 0,
+    pointerEvents: 'none',
+  }}
+>
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 18, padding: 24 }}>
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 28, fontWeight: 700 }}>Rentab&apos;Immo</div>
