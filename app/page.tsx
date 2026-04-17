@@ -857,25 +857,75 @@ export default function HomePage() {
     setUiMessage('✅ Retour au scénario par défaut');
   }
 
-  async function handleExportPdf() {
-    const pdfElement = document.getElementById('pdf-bankable-export');
-    if (!pdfElement) return;
+async function handleExportPdf() {
+  const pdfElement = document.getElementById('pdf-bankable-export');
+  if (!pdfElement) return;
 
-    const html2pdfModule = await import('html2pdf.js');
-    const html2pdf = (html2pdfModule as any).default ?? html2pdfModule;
+  const html2pdfModule = await import('html2pdf.js');
+  const html2pdf = (html2pdfModule as any).default;
 
+  const originalVisibility = pdfElement.style.visibility;
+  const originalOpacity = pdfElement.style.opacity;
+  const originalZIndex = pdfElement.style.zIndex;
+  const originalPointerEvents = pdfElement.style.pointerEvents;
+
+  pdfElement.style.visibility = 'visible';
+  pdfElement.style.opacity = '1';
+  pdfElement.style.zIndex = '9999';
+  pdfElement.style.pointerEvents = 'none';
+
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  const clonedElement = pdfElement.cloneNode(true) as HTMLElement;
+  clonedElement.style.position = 'static';
+  clonedElement.style.visibility = 'visible';
+  clonedElement.style.opacity = '1';
+  clonedElement.style.zIndex = 'auto';
+  clonedElement.style.pointerEvents = 'none';
+  clonedElement.style.width = '794px';
+  clonedElement.style.background = '#ffffff';
+  clonedElement.style.margin = '0 auto';
+
+  const tempContainer = document.createElement('div');
+  tempContainer.style.position = 'fixed';
+  tempContainer.style.inset = '0';
+  tempContainer.style.background = '#ffffff';
+  tempContainer.style.zIndex = '999999';
+  tempContainer.style.overflow = 'auto';
+  tempContainer.style.padding = '24px';
+  tempContainer.appendChild(clonedElement);
+  document.body.appendChild(tempContainer);
+
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  try {
     await html2pdf()
       .set({
-        margin: 8,
+        margin: 0,
         filename: `rentab-immo-synthese-${scenario.name || 'simulation'}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all'] },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        },
+        jsPDF: {
+          unit: 'mm',
+          format: 'a4',
+          orientation: 'portrait',
+        },
       })
-      .from(pdfElement)
+      .from(clonedElement)
       .save();
+  } finally {
+    document.body.removeChild(tempContainer);
+    pdfElement.style.visibility = originalVisibility;
+    pdfElement.style.opacity = originalOpacity;
+    pdfElement.style.zIndex = originalZIndex;
+    pdfElement.style.pointerEvents = originalPointerEvents;
   }
+}
 
   const notaryFees = calculateNotaryFees(scenario);
   const totalProjectCost = calculateTotalProjectCost(scenario);
@@ -1990,17 +2040,20 @@ export default function HomePage() {
 
       <div
         id="pdf-bankable-export"
-        style={{
-          position: 'fixed',
-          left: '-99999px',
-          top: 0,
-          width: '794px',
-          background: '#ffffff',
-          color: '#111827',
-          padding: '28px 32px',
-          boxSizing: 'border-box',
-          fontFamily: 'Arial, sans-serif',
-        }}
+  style={{
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  width: '794px',
+  background: '#ffffff',
+  color: '#111827',
+  padding: '28px 32px',
+  boxSizing: 'border-box',
+  fontFamily: 'Arial, sans-serif',
+  visibility: 'hidden',
+  opacity: 0,
+  pointerEvents: 'none',
+}}
       >
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 18, padding: 24 }}>
           <div style={{ marginBottom: 18 }}>
