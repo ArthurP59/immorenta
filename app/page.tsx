@@ -1,4 +1,4 @@
-''use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
@@ -171,7 +171,6 @@ function formatInputValue(value: number, integer = false): string {
 function parseInputValue(value: string): number {
   const normalized = value.replace(',', '.').trim();
   if (normalized === '') return 0;
-
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
 }
@@ -383,10 +382,7 @@ function buildComparisonScenarios(baseScenario: ScenarioInput) {
         ...baseScenario,
         monthlyRent: baseScenario.monthlyRent * 0.95,
         annualInterestRate: baseScenario.annualInterestRate + 0.003,
-        annualPriceGrowthRate: Math.max(
-          0,
-          baseScenario.annualPriceGrowthRate - 0.003,
-        ),
+        annualPriceGrowthRate: Math.max(0, baseScenario.annualPriceGrowthRate - 0.003),
       },
     },
     {
@@ -395,10 +391,7 @@ function buildComparisonScenarios(baseScenario: ScenarioInput) {
       data: {
         ...baseScenario,
         monthlyRent: baseScenario.monthlyRent * 1.05,
-        annualInterestRate: Math.max(
-          0,
-          baseScenario.annualInterestRate - 0.003,
-        ),
+        annualInterestRate: Math.max(0, baseScenario.annualInterestRate - 0.003),
         annualPriceGrowthRate: baseScenario.annualPriceGrowthRate + 0.003,
       },
     },
@@ -685,9 +678,7 @@ export default function HomePage() {
   ) {
     setComparisonScenarios((prev) =>
       prev.map((item) =>
-        item.id === id
-          ? { ...item, data: { ...item.data, [key]: value } }
-          : item,
+        item.id === id ? { ...item, data: { ...item.data, [key]: value } } : item,
       ),
     );
 
@@ -884,14 +875,10 @@ export default function HomePage() {
     year1 && totalProjectCost > 0 ? year1.noi / totalProjectCost : 0;
 
   const economicVacancy =
-    year1 && year1.annualGrossRent > 0
-      ? year1.annualVacancyLoss / year1.annualGrossRent
-      : 0;
+    year1 && year1.annualGrossRent > 0 ? year1.annualVacancyLoss / year1.annualGrossRent : 0;
 
   const opexRatio =
-    year1 && year1.annualGrossRent > 0
-      ? year1.annualCharges / year1.annualGrossRent
-      : 0;
+    year1 && year1.annualGrossRent > 0 ? year1.annualCharges / year1.annualGrossRent : 0;
 
   const avgMonthlyEffort = calculateAverageMonthlyEffort(scenario);
 
@@ -911,7 +898,8 @@ export default function HomePage() {
 
   async function handleExportPdf() {
     const { jsPDF } = await import('jspdf');
-    const autoTable = (await import('jspdf-autotable')).default;
+    const autoTableModule = await import('jspdf-autotable');
+    const autoTable = autoTableModule.default;
 
     const doc = new jsPDF({
       orientation: 'portrait',
@@ -926,18 +914,20 @@ export default function HomePage() {
       doc.setFont('helvetica', 'bold');
       doc.text(`${label} :`, x, currentY);
       doc.setFont('helvetica', 'normal');
-      doc.text(value, x + 34, currentY);
+      doc.text(value, x + 38, currentY);
     };
 
     const addSectionTitle = (title: string) => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
+      doc.setTextColor(17, 24, 39);
       doc.text(title, margin, y);
       y += 6;
     };
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
+    doc.setTextColor(17, 24, 39);
     doc.text("Rentab'Immo", margin, y);
     y += 8;
 
@@ -1000,7 +990,12 @@ export default function HomePage() {
     y += 5;
     line('NOI année 1', formatCurrency(year1 ? year1.noi : 0), margin, y);
     y += 5;
-    line('Service dette année 1', formatCurrency(year1 ? year1.annualDebtService : 0), margin, y);
+    line(
+      'Service dette année 1',
+      formatCurrency(year1 ? year1.annualDebtService : 0),
+      margin,
+      y,
+    );
     y += 5;
     line('DSCR', dscr.toFixed(2), margin, y);
     y += 8;
@@ -1030,6 +1025,7 @@ export default function HomePage() {
         font: 'helvetica',
         fontSize: 8,
         cellPadding: 2,
+        textColor: [17, 24, 39],
       },
       headStyles: {
         fillColor: [17, 24, 39],
@@ -1058,6 +1054,7 @@ export default function HomePage() {
         font: 'helvetica',
         fontSize: 8,
         cellPadding: 2,
+        textColor: [17, 24, 39],
       },
       headStyles: {
         fillColor: [17, 24, 39],
@@ -1069,10 +1066,13 @@ export default function HomePage() {
       },
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 8;
+    const finalY =
+      (doc as jsPDF & { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 40;
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text(`TRI total : ${formatPercent(irr)}`, margin, finalY);
+    doc.setTextColor(17, 24, 39);
+    doc.text(`TRI total : ${formatPercent(irr)}`, margin, finalY + 8);
 
     doc.save(`rentab-immo-synthese-${scenario.name || 'simulation'}.pdf`);
   }
@@ -1754,7 +1754,10 @@ export default function HomePage() {
                 </p>
                 <p><strong>Mensualité totale :</strong> {formatCurrency(monthlyDebt)}</p>
                 <p><strong>TAEG :</strong> {formatPercent(taeg)}</p>
-                <p><strong>Service de la dette année 1 :</strong> {formatCurrency(year1 ? year1.annualDebtService : 0)}</p>
+                <p>
+                  <strong>Service de la dette année 1 :</strong>{' '}
+                  {formatCurrency(year1 ? year1.annualDebtService : 0)}
+                </p>
               </div>
 
               <div style={cardCss}>
@@ -1773,9 +1776,7 @@ export default function HomePage() {
                     {formatPercent(grossYield)}
                   </span>
                 </p>
-                <p style={subtleNoteCss}>
-                  Correspond au loyer HC × 12 / coût total projet.
-                </p>
+                <p style={subtleNoteCss}>Correspond au loyer HC × 12 / coût total projet.</p>
 
                 <p>
                   <strong>
@@ -1823,9 +1824,7 @@ export default function HomePage() {
                   </strong>{' '}
                   {formatPercent(opexRatio)}
                 </p>
-                <p style={subtleNoteCss}>
-                  Correspond aux charges d’exploitation / loyer.
-                </p>
+                <p style={subtleNoteCss}>Correspond aux charges d’exploitation / loyer.</p>
 
                 <p>
                   <strong>
@@ -1933,9 +1932,7 @@ export default function HomePage() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: isMobile
-                  ? '1fr'
-                  : 'repeat(auto-fit, minmax(250px, 1fr))',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(250px, 1fr))',
                 gap: 14,
                 marginTop: 16,
               }}
@@ -2145,10 +2142,7 @@ export default function HomePage() {
               Cette section permet à un débutant de comprendre les principales notions affichées
               dans le simulateur. Tu peux cliquer sur chaque terme pour afficher son explication.
             </p>
-            <GlossaryGuide
-              activeTerm={activeGlossaryTerm}
-              onToggle={toggleGlossary}
-            />
+            <GlossaryGuide activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} />
           </section>
         </div>
       </div>
