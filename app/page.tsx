@@ -857,76 +857,6 @@ export default function HomePage() {
     setUiMessage('✅ Retour au scénario par défaut');
   }
 
-async function handleExportPdf() {
-  const pdfElement = document.getElementById('pdf-bankable-export');
-  if (!pdfElement) return;
-
-  const html2pdfModule = await import('html2pdf.js');
-  const html2pdf = (html2pdfModule as any).default;
-
-  const originalVisibility = pdfElement.style.visibility;
-  const originalOpacity = pdfElement.style.opacity;
-  const originalZIndex = pdfElement.style.zIndex;
-  const originalPointerEvents = pdfElement.style.pointerEvents;
-
-  pdfElement.style.visibility = 'visible';
-  pdfElement.style.opacity = '1';
-  pdfElement.style.zIndex = '9999';
-  pdfElement.style.pointerEvents = 'none';
-
-  await new Promise((resolve) => setTimeout(resolve, 300));
-
-  const clonedElement = pdfElement.cloneNode(true) as HTMLElement;
-  clonedElement.style.position = 'static';
-  clonedElement.style.visibility = 'visible';
-  clonedElement.style.opacity = '1';
-  clonedElement.style.zIndex = 'auto';
-  clonedElement.style.pointerEvents = 'none';
-  clonedElement.style.width = '794px';
-  clonedElement.style.background = '#ffffff';
-  clonedElement.style.margin = '0 auto';
-
-  const tempContainer = document.createElement('div');
-  tempContainer.style.position = 'fixed';
-  tempContainer.style.inset = '0';
-  tempContainer.style.background = '#ffffff';
-  tempContainer.style.zIndex = '999999';
-  tempContainer.style.overflow = 'auto';
-  tempContainer.style.padding = '24px';
-  tempContainer.appendChild(clonedElement);
-  document.body.appendChild(tempContainer);
-
-  await new Promise((resolve) => setTimeout(resolve, 300));
-
-  try {
-    await html2pdf()
-      .set({
-        margin: 0,
-        filename: `rentab-immo-synthese-${scenario.name || 'simulation'}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-        },
-        jsPDF: {
-          unit: 'mm',
-          format: 'a4',
-          orientation: 'portrait',
-        },
-      })
-      .from(clonedElement)
-      .save();
-  } finally {
-    document.body.removeChild(tempContainer);
-    pdfElement.style.visibility = originalVisibility;
-    pdfElement.style.opacity = originalOpacity;
-    pdfElement.style.zIndex = originalZIndex;
-    pdfElement.style.pointerEvents = originalPointerEvents;
-  }
-}
-
   const notaryFees = calculateNotaryFees(scenario);
   const totalProjectCost = calculateTotalProjectCost(scenario);
   const financedAmount = calculateFinancedAmount(scenario);
@@ -979,6 +909,174 @@ async function handleExportPdf() {
   const dscr =
     year1 && year1.annualDebtService > 0 ? year1.noi / year1.annualDebtService : 0;
 
+  async function handleExportPdf() {
+    const { jsPDF } = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const margin = 12;
+    let y = 16;
+
+    const line = (label: string, value: string, x: number, currentY: number) => {
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${label} :`, x, currentY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(value, x + 34, currentY);
+    };
+
+    const addSectionTitle = (title: string) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.text(title, margin, y);
+      y += 6;
+    };
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(20);
+    doc.text("Rentab'Immo", margin, y);
+    y += 8;
+
+    doc.setFontSize(14);
+    doc.text("Fiche synthèse investissement locatif", margin, y);
+    y += 10;
+
+    doc.setDrawColor(229, 231, 235);
+    doc.roundedRect(margin, y, 58, 22, 3, 3);
+    doc.roundedRect(margin + 61, y, 58, 22, 3, 3);
+    doc.roundedRect(margin + 122, y, 58, 22, 3, 3);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(107, 114, 128);
+    doc.text('Cash-flow mensuel', margin + 4, y + 6);
+    doc.text('Rendement net', margin + 65, y + 6);
+    doc.text('TRI', margin + 126, y + 6);
+
+    doc.setTextColor(17, 24, 39);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.text(formatCurrency(year1 ? year1.monthlyCashflow : 0), margin + 4, y + 14);
+    doc.text(formatPercent(netYield), margin + 65, y + 14);
+    doc.text(formatPercent(irr), margin + 126, y + 14);
+
+    y += 30;
+
+    addSectionTitle('Projet');
+    doc.setFontSize(10);
+    line('Prix FAI', formatCurrency(scenario.purchasePrice), margin, y);
+    y += 5;
+    line('Coût total projet', formatCurrency(totalProjectCost), margin, y);
+    y += 5;
+    line('Loyer HC mensuel', formatCurrency(scenario.monthlyRent), margin, y);
+    y += 5;
+    line('Durée de détention', `${scenario.holdingPeriodYears} ans`, margin, y);
+    y += 8;
+
+    addSectionTitle('Financement');
+    doc.setFontSize(10);
+    line('Apport', formatCurrency(scenario.downPayment), margin, y);
+    y += 5;
+    line('Dette initiale', formatCurrency(financedAmount), margin, y);
+    y += 5;
+    line('Mensualité hors assurance', formatCurrency(monthlyPayment), margin, y);
+    y += 5;
+    line('Assurance mensuelle', formatCurrency(monthlyInsurance), margin, y);
+    y += 5;
+    line('Mensualité totale', formatCurrency(monthlyDebt), margin, y);
+    y += 5;
+    line('TAEG', formatPercent(taeg), margin, y);
+    y += 8;
+
+    addSectionTitle('Performance');
+    doc.setFontSize(10);
+    line('Rendement brut', formatPercent(grossYield), margin, y);
+    y += 5;
+    line('Rendement net', formatPercent(netYield), margin, y);
+    y += 5;
+    line('NOI année 1', formatCurrency(year1 ? year1.noi : 0), margin, y);
+    y += 5;
+    line('Service dette année 1', formatCurrency(year1 ? year1.annualDebtService : 0), margin, y);
+    y += 5;
+    line('DSCR', dscr.toFixed(2), margin, y);
+    y += 8;
+
+    addSectionTitle("Tableau d'exploitation annuelle résumé");
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      head: [[
+        'Année',
+        'Loyers encaissés',
+        'NOI',
+        'Service dette',
+        'Cash-flow annuel',
+      ]],
+      body: projection
+        .slice(0, Math.min(projection.length, scenario.holdingPeriodYears))
+        .map((row) => [
+          String(row.year),
+          formatCurrency(row.annualCollectedRent),
+          formatCurrency(row.noi),
+          formatCurrency(row.annualDebtService),
+          formatCurrency(row.annualCashflow),
+        ]),
+      styles: {
+        font: 'helvetica',
+        fontSize: 8,
+        cellPadding: 2,
+      },
+      headStyles: {
+        fillColor: [17, 24, 39],
+        textColor: 255,
+        fontStyle: 'bold',
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251],
+      },
+    });
+
+    doc.addPage();
+    y = 16;
+
+    addSectionTitle('Détail du TRI');
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      head: [['Flux', 'Montant']],
+      body: cashflows.map((cashflow, index) => [
+        index === 0 ? 'Apport initial' : `Année ${index}`,
+        formatCurrency(cashflow),
+      ]),
+      styles: {
+        font: 'helvetica',
+        fontSize: 8,
+        cellPadding: 2,
+      },
+      headStyles: {
+        fillColor: [17, 24, 39],
+        textColor: 255,
+        fontStyle: 'bold',
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251],
+      },
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 8;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(`TRI total : ${formatPercent(irr)}`, margin, finalY);
+
+    doc.save(`rentab-immo-synthese-${scenario.name || 'simulation'}.pdf`);
+  }
+
   const resumeColumns = [
     'Année',
     'Loyer mensuel',
@@ -1017,11 +1115,6 @@ async function handleExportPdf() {
   ];
 
   const activeColumns = tableMode === 'resume' ? resumeColumns : detailColumns;
-
-  const pdfSummaryRows = projection.slice(
-    0,
-    Math.min(projection.length, scenario.holdingPeriodYears),
-  );
 
   return (
     <main
@@ -1150,14 +1243,6 @@ async function handleExportPdf() {
             style={secondaryButtonStyle(isMobile)}
           >
             Revenir au scénario par défaut
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportPdf}
-            style={primaryButtonStyle(isMobile)}
-          >
-            Exporter en PDF
           </button>
         </div>
 
@@ -1301,10 +1386,10 @@ async function handleExportPdf() {
             marginTop: 0,
             position: isMobile ? 'static' : 'sticky',
             top: isMobile ? undefined : 20,
-            maxHeight: isMobile ? undefined : 'calc(100vh - 40px)',
-            overflowY: isMobile ? undefined : 'auto',
             padding: isMobile ? 14 : 20,
             order: isMobile ? 2 : 0,
+            maxHeight: isMobile ? 'none' : 'calc(100vh - 40px)',
+            overflowY: isMobile ? 'visible' : 'auto',
           }}
         >
           <h2 style={{ marginTop: 0, fontSize: isMobile ? 20 : 24 }}>Hypothèses modifiables</h2>
@@ -1813,6 +1898,36 @@ async function handleExportPdf() {
             </div>
           </details>
 
+          <div style={{ ...sectionCss, padding: isMobile ? 14 : 20 }}>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: 12,
+                alignItems: isMobile ? 'stretch' : 'center',
+                flexDirection: isMobile ? 'column' : 'row',
+              }}
+            >
+              <div>
+                <h2 style={{ marginTop: 0, marginBottom: 6, fontSize: isMobile ? 20 : 24 }}>
+                  Export PDF bankable
+                </h2>
+                <p style={{ color: '#6b7280', margin: 0, lineHeight: 1.45 }}>
+                  Exporte une synthèse PDF de la simulation en cours avec dashboard, tableau
+                  d’exploitation résumé et détail du TRI.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleExportPdf}
+                style={primaryButtonStyle(isMobile)}
+              >
+                Exporter en PDF
+              </button>
+            </div>
+          </div>
+
           <details open style={{ ...sectionCss, padding: isMobile ? 14 : 20 }}>
             <summary style={summaryStyle(isMobile)}>Synthèse des Inputs année 1</summary>
             <div
@@ -2035,160 +2150,6 @@ async function handleExportPdf() {
               onToggle={toggleGlossary}
             />
           </section>
-        </div>
-      </div>
-
-<div
-  id="pdf-bankable-export"
- style={{
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  width: '794px',
-  background: '#ffffff',
-  color: '#111827',
-  padding: '28px 32px',
-  boxSizing: 'border-box',
-  fontFamily: 'Arial, sans-serif',
-  visibility: 'hidden',
-  opacity: 0,
-  pointerEvents: 'none',
-}}
->
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 18, padding: 24 }}>
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 28, fontWeight: 700 }}>Rentab&apos;Immo</div>
-            <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>
-              Fiche synthèse investissement locatif
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 12,
-              marginBottom: 18,
-            }}
-          >
-            <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>Cash-flow</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: getCashColor(year1 ? year1.monthlyCashflow : 0) }}>
-                {formatCurrency(year1 ? year1.monthlyCashflow : 0)} / mois
-              </div>
-            </div>
-            <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>Rendement net</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>{formatPercent(netYield)}</div>
-            </div>
-            <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>TRI</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>{formatPercent(irr)}</div>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr',
-              gap: 16,
-              marginBottom: 18,
-            }}
-          >
-            <div>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>Projet</div>
-              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-                <div><strong>Type :</strong> Appartement locatif</div>
-                <div><strong>Stratégie :</strong> Location longue durée</div>
-                <div><strong>Horizon :</strong> {scenario.holdingPeriodYears} ans</div>
-                <div><strong>Loyer HC :</strong> {formatCurrency(scenario.monthlyRent)}</div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>Financement</div>
-              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-                <div><strong>Coût total projet :</strong> {formatCurrency(totalProjectCost)}</div>
-                <div><strong>Apport :</strong> {formatCurrency(scenario.downPayment)}</div>
-                <div><strong>Dette :</strong> {formatCurrency(financedAmount)}</div>
-                <div><strong>Mensualité :</strong> {formatCurrency(monthlyDebt)}</div>
-                <div><strong>TAEG :</strong> {formatPercent(taeg)}</div>
-              </div>
-            </div>
-
-            <div>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>Performance</div>
-              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-                <div><strong>Rendement brut :</strong> {formatPercent(grossYield)}</div>
-                <div><strong>Rendement net :</strong> {formatPercent(netYield)}</div>
-                <div><strong>NOI :</strong> {formatCurrency(year1 ? year1.noi : 0)}</div>
-                <div><strong>Service dette :</strong> {formatCurrency(year1 ? year1.annualDebtService : 0)}</div>
-                <div><strong>DSCR :</strong> {formatPercent(dscr)}</div>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>Tableau d’exploitation annuelle résumé</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-              <thead>
-                <tr style={{ background: '#111827', color: '#fff' }}>
-                  <th style={{ padding: 6, textAlign: 'left' }}>Année</th>
-                  <th style={{ padding: 6, textAlign: 'left' }}>Loyers encaissés</th>
-                  <th style={{ padding: 6, textAlign: 'left' }}>NOI</th>
-                  <th style={{ padding: 6, textAlign: 'left' }}>Service dette</th>
-                  <th style={{ padding: 6, textAlign: 'left' }}>Cash-flow annuel</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pdfSummaryRows.map((row, index) => (
-                  <tr key={row.year} style={{ background: index % 2 === 0 ? '#fff' : '#f9fafb' }}>
-                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{row.year}</td>
-                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{formatCurrency(row.annualCollectedRent)}</td>
-                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{formatCurrency(row.noi)}</td>
-                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{formatCurrency(row.annualDebtService)}</td>
-                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb', color: getCashColor(row.annualCashflow), fontWeight: 700 }}>
-                      {formatCurrency(row.annualCashflow)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div>
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>Détail du TRI</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-              <thead>
-                <tr style={{ background: '#111827', color: '#fff' }}>
-                  <th style={{ padding: 6, textAlign: 'left' }}>Flux</th>
-                  <th style={{ padding: 6, textAlign: 'left' }}>Montant</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cashflows.map((cashflow, index) => (
-                  <tr key={index} style={{ background: index % 2 === 0 ? '#fff' : '#f9fafb' }}>
-                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>
-                      {index === 0 ? 'Apport initial' : `Année ${index}`}
-                    </td>
-                    <td
-                      style={{
-                        padding: 6,
-                        borderBottom: '1px solid #e5e7eb',
-                        color: cashflow >= 0 ? '#15803d' : '#dc2626',
-                        fontWeight: 700,
-                      }}
-                    >
-                      {formatCurrency(cashflow)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div style={{ marginTop: 8, fontSize: 11, color: '#6b7280' }}>
-              TRI total de la simulation : <strong style={{ color: '#111827' }}>{formatPercent(irr)}</strong>
-            </div>
-          </div>
         </div>
       </div>
     </main>
