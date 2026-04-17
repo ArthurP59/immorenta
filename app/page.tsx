@@ -20,6 +20,7 @@ import {
   buildDebtSchedule,
   calculateMonthlyInsurance,
   calculateMonthlyPayment,
+  calculateTAEG,
   calculateTotalMonthlyDebt,
 } from '@/lib/calculations/debt';
 
@@ -155,6 +156,25 @@ const GLOSSARY: Record<string, GlossaryItem> = {
       "Le prix FAI est le prix d’achat incluant les frais d’agence lorsque ceux-ci sont supportés par l’acquéreur. C’est ce montant qu’il faut bien intégrer dans le coût global de l’opération.",
   },
 };
+
+function roundToThree(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+function formatInputValue(value: number, integer = false): string {
+  if (!Number.isFinite(value)) return '';
+  if (value === 0) return '';
+  if (integer) return String(Math.round(value));
+  return String(roundToThree(value));
+}
+
+function parseInputValue(value: string): number {
+  const normalized = value.replace(',', '.').trim();
+  if (normalized === '') return 0;
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 function formatCurrency(value: number): string {
   return value.toLocaleString('fr-FR', {
@@ -513,6 +533,54 @@ function GlossaryGuide({
   );
 }
 
+function NumberInput({
+  value,
+  onCommit,
+  step = '1',
+  integer = false,
+}: {
+  value: number;
+  onCommit: (value: number) => void;
+  step?: string;
+  integer?: boolean;
+}) {
+  const [text, setText] = useState(formatInputValue(value, integer));
+
+  useEffect(() => {
+    setText(formatInputValue(value, integer));
+  }, [value, integer]);
+
+  function commit(rawValue: string) {
+    const parsed = parseInputValue(rawValue);
+    const nextValue = integer ? Math.round(parsed) : roundToThree(parsed);
+    onCommit(nextValue);
+    setText(formatInputValue(nextValue, integer));
+  }
+
+  return (
+    <input
+      style={inputCss}
+      type="number"
+      step={step}
+      value={text}
+      onFocus={() => {
+        if (Number(text) === 0) setText('');
+      }}
+      onChange={(e) => {
+        const rawValue = e.target.value.replace(',', '.');
+        setText(rawValue);
+
+        if (rawValue === '') return;
+
+        const parsed = parseInputValue(rawValue);
+        const nextValue = integer ? Math.round(parsed) : roundToThree(parsed);
+        onCommit(nextValue);
+      }}
+      onBlur={() => commit(text)}
+    />
+  );
+}
+
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -562,7 +630,7 @@ export default function HomePage() {
   const appGridStyle: CSSProperties = useMemo(
     () => ({
       display: 'grid',
-      gridTemplateColumns: isMobile ? '1fr' : '360px minmax(0, 1fr)',
+      gridTemplateColumns: isMobile ? '1fr' : '380px minmax(0, 1fr)',
       gap: isMobile ? 16 : 24,
       alignItems: 'start',
       width: '100%',
@@ -789,6 +857,26 @@ export default function HomePage() {
     setUiMessage('✅ Retour au scénario par défaut');
   }
 
+  async function handleExportPdf() {
+    const pdfElement = document.getElementById('pdf-bankable-export');
+    if (!pdfElement) return;
+
+    const html2pdfModule = await import('html2pdf.js');
+    const html2pdf = (html2pdfModule as any).default ?? html2pdfModule;
+
+    await html2pdf()
+      .set({
+        margin: 8,
+        filename: `rentab-immo-synthese-${scenario.name || 'simulation'}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all'] },
+      })
+      .from(pdfElement)
+      .save();
+  }
+
   const notaryFees = calculateNotaryFees(scenario);
   const totalProjectCost = calculateTotalProjectCost(scenario);
   const financedAmount = calculateFinancedAmount(scenario);
@@ -797,6 +885,7 @@ export default function HomePage() {
   const monthlyPayment = calculateMonthlyPayment(scenario);
   const monthlyInsurance = calculateMonthlyInsurance(scenario);
   const monthlyDebt = calculateTotalMonthlyDebt(scenario);
+  const taeg = calculateTAEG(scenario);
 
   const projection = buildProjection(scenario);
   const year1 = projection[0];
@@ -837,6 +926,9 @@ export default function HomePage() {
   const capSortie = calculateCapSortie(scenario);
   const gainCapRate = calculateCapRateGain(scenario);
 
+  const dscr =
+    year1 && year1.annualDebtService > 0 ? year1.noi / year1.annualDebtService : 0;
+
   const resumeColumns = [
     'Année',
     'Loyer mensuel',
@@ -875,6 +967,11 @@ export default function HomePage() {
   ];
 
   const activeColumns = tableMode === 'resume' ? resumeColumns : detailColumns;
+
+  const pdfSummaryRows = projection.slice(
+    0,
+    Math.min(projection.length, scenario.holdingPeriodYears),
+  );
 
   return (
     <main
@@ -1003,6 +1100,14 @@ export default function HomePage() {
             style={secondaryButtonStyle(isMobile)}
           >
             Revenir au scénario par défaut
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            style={primaryButtonStyle(isMobile)}
+          >
+            Exporter en PDF
           </button>
         </div>
 
@@ -1146,6 +1251,8 @@ export default function HomePage() {
             marginTop: 0,
             position: isMobile ? 'static' : 'sticky',
             top: isMobile ? undefined : 20,
+            maxHeight: isMobile ? undefined : 'calc(100vh - 40px)',
+            overflowY: isMobile ? undefined : 'auto',
             padding: isMobile ? 14 : 20,
             order: isMobile ? 2 : 0,
           }}
@@ -1157,60 +1264,50 @@ export default function HomePage() {
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
               <div>
                 <label style={labelCss}>Prix d’achat (Frais agence acquéreur inclus)</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.purchasePrice}
-                  onChange={(e) => update('purchasePrice', Number(e.target.value))}
+                  integer
+                  onCommit={(value) => update('purchasePrice', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Frais de notaire (%)</label>
-                <input
-                  style={inputCss}
-                  type="number"
-                  step="0.001"
+                <NumberInput
                   value={scenario.notaryFeesRate}
-                  onChange={(e) => update('notaryFeesRate', Number(e.target.value))}
+                  step="0.001"
+                  onCommit={(value) => update('notaryFeesRate', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Travaux initiaux</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.works}
-                  onChange={(e) => update('works', Number(e.target.value))}
+                  integer
+                  onCommit={(value) => update('works', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Mobilier initial</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.furniture}
-                  onChange={(e) => update('furniture', Number(e.target.value))}
+                  integer
+                  onCommit={(value) => update('furniture', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Frais de dossier crédit</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.loanFees}
-                  onChange={(e) => update('loanFees', Number(e.target.value))}
+                  integer
+                  onCommit={(value) => update('loanFees', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Croissance annuelle de valeur du bien</label>
-                <input
-                  style={inputCss}
-                  type="number"
-                  step="0.001"
+                <NumberInput
                   value={scenario.annualPriceGrowthRate}
-                  onChange={(e) =>
-                    update('annualPriceGrowthRate', Number(e.target.value))
-                  }
+                  step="0.001"
+                  onCommit={(value) => update('annualPriceGrowthRate', value)}
                 />
               </div>
             </div>
@@ -1221,123 +1318,90 @@ export default function HomePage() {
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
               <div>
                 <label style={labelCss}>Loyer mensuel hors charges</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.monthlyRent}
-                  onChange={(e) => update('monthlyRent', Number(e.target.value))}
+                  integer
+                  onCommit={(value) => update('monthlyRent', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Vacance locative (%)</label>
-                <input
-                  style={inputCss}
-                  type="number"
-                  step="0.001"
+                <NumberInput
                   value={scenario.vacancyRate}
-                  onChange={(e) => update('vacancyRate', Number(e.target.value))}
+                  step="0.001"
+                  onCommit={(value) => update('vacancyRate', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Croissance annuelle des loyers</label>
-                <input
-                  style={inputCss}
-                  type="number"
-                  step="0.001"
+                <NumberInput
                   value={scenario.annualRentGrowthRate}
-                  onChange={(e) =>
-                    update('annualRentGrowthRate', Number(e.target.value))
-                  }
+                  step="0.001"
+                  onCommit={(value) => update('annualRentGrowthRate', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Croissance annuelle des charges</label>
-                <input
-                  style={inputCss}
-                  type="number"
-                  step="0.001"
+                <NumberInput
                   value={scenario.annualChargesGrowthRate}
-                  onChange={(e) =>
-                    update('annualChargesGrowthRate', Number(e.target.value))
-                  }
+                  step="0.001"
+                  onCommit={(value) => update('annualChargesGrowthRate', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Charges de copro annuelles non récupérables</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.nonRecoverableChargesAnnual}
-                  onChange={(e) =>
-                    update('nonRecoverableChargesAnnual', Number(e.target.value))
-                  }
+                  integer
+                  onCommit={(value) => update('nonRecoverableChargesAnnual', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Taxe foncière</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.propertyTaxAnnual}
-                  onChange={(e) =>
-                    update('propertyTaxAnnual', Number(e.target.value))
-                  }
+                  integer
+                  onCommit={(value) => update('propertyTaxAnnual', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Assurance propriétaire annuelle (PNO)</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.pnoInsuranceAnnual}
-                  onChange={(e) =>
-                    update('pnoInsuranceAnnual', Number(e.target.value))
-                  }
+                  integer
+                  onCommit={(value) => update('pnoInsuranceAnnual', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Gestion locative (% loyers encaissés)</label>
-                <input
-                  style={inputCss}
-                  type="number"
-                  step="0.001"
+                <NumberInput
                   value={scenario.managementFeesRate}
-                  onChange={(e) =>
-                    update('managementFeesRate', Number(e.target.value))
-                  }
+                  step="0.001"
+                  onCommit={(value) => update('managementFeesRate', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Gestion comptable annuelle</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.accountingAnnual}
-                  onChange={(e) =>
-                    update('accountingAnnual', Number(e.target.value))
-                  }
+                  integer
+                  onCommit={(value) => update('accountingAnnual', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Maintenance annuelle</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.maintenanceAnnual}
-                  onChange={(e) =>
-                    update('maintenanceAnnual', Number(e.target.value))
-                  }
+                  integer
+                  onCommit={(value) => update('maintenanceAnnual', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Autres charges annuelles</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.otherChargesAnnual}
-                  onChange={(e) =>
-                    update('otherChargesAnnual', Number(e.target.value))
-                  }
+                  integer
+                  onCommit={(value) => update('otherChargesAnnual', value)}
                 />
               </div>
             </div>
@@ -1348,67 +1412,50 @@ export default function HomePage() {
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
               <div>
                 <label style={labelCss}>Apport</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.downPayment}
-                  onChange={(e) => update('downPayment', Number(e.target.value))}
+                  integer
+                  onCommit={(value) => update('downPayment', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Taux nominal annuel</label>
-                <input
-                  style={inputCss}
-                  type="number"
-                  step="0.001"
+                <NumberInput
                   value={scenario.annualInterestRate}
-                  onChange={(e) =>
-                    update('annualInterestRate', Number(e.target.value))
-                  }
+                  step="0.001"
+                  onCommit={(value) => update('annualInterestRate', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Taux assurance emprunteur</label>
-                <input
-                  style={inputCss}
-                  type="number"
-                  step="0.001"
+                <NumberInput
                   value={scenario.annualInsuranceRate}
-                  onChange={(e) =>
-                    update('annualInsuranceRate', Number(e.target.value))
-                  }
+                  step="0.001"
+                  onCommit={(value) => update('annualInsuranceRate', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Durée du prêt (années)</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.loanDurationYears}
-                  onChange={(e) =>
-                    update('loanDurationYears', Number(e.target.value))
-                  }
+                  integer
+                  onCommit={(value) => update('loanDurationYears', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Durée de détention</label>
-                <input
-                  style={inputCss}
-                  type="number"
+                <NumberInput
                   value={scenario.holdingPeriodYears}
-                  onChange={(e) =>
-                    update('holdingPeriodYears', Number(e.target.value))
-                  }
+                  integer
+                  onCommit={(value) => update('holdingPeriodYears', value)}
                 />
               </div>
               <div>
                 <label style={labelCss}>Frais de vente (%)</label>
-                <input
-                  style={inputCss}
-                  type="number"
-                  step="0.001"
+                <NumberInput
                   value={scenario.saleFeesRate}
-                  onChange={(e) => update('saleFeesRate', Number(e.target.value))}
+                  step="0.001"
+                  onCommit={(value) => update('saleFeesRate', value)}
                 />
               </div>
             </div>
@@ -1571,6 +1618,7 @@ export default function HomePage() {
                   {formatCurrency(monthlyInsurance)}
                 </p>
                 <p><strong>Mensualité totale :</strong> {formatCurrency(monthlyDebt)}</p>
+                <p><strong>TAEG :</strong> {formatPercent(taeg)}</p>
                 <p><strong>Service de la dette année 1 :</strong> {formatCurrency(year1 ? year1.annualDebtService : 0)}</p>
               </div>
 
@@ -1732,6 +1780,7 @@ export default function HomePage() {
                 <p><strong>Mensualité hors assurance :</strong> {formatCurrency(monthlyPayment)}</p>
                 <p><strong>Assurance emprunteur mensuelle :</strong> {formatCurrency(monthlyInsurance)}</p>
                 <p><strong>Mensualité totale :</strong> {formatCurrency(monthlyDebt)}</p>
+                <p><strong>TAEG :</strong> {formatPercent(taeg)}</p>
               </div>
               <div style={cardCss}>
                 <p><strong>Charges de copro annuelles non récupérables :</strong> {formatCurrency(year1ChargesBreakdown.coproNonRecoverable)}</p>
@@ -1936,6 +1985,157 @@ export default function HomePage() {
               onToggle={toggleGlossary}
             />
           </section>
+        </div>
+      </div>
+
+      <div
+        id="pdf-bankable-export"
+        style={{
+          position: 'fixed',
+          left: '-99999px',
+          top: 0,
+          width: '794px',
+          background: '#ffffff',
+          color: '#111827',
+          padding: '28px 32px',
+          boxSizing: 'border-box',
+          fontFamily: 'Arial, sans-serif',
+        }}
+      >
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 18, padding: 24 }}>
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 28, fontWeight: 700 }}>Rentab&apos;Immo</div>
+            <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>
+              Fiche synthèse investissement locatif
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 12,
+              marginBottom: 18,
+            }}
+          >
+            <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>Cash-flow</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: getCashColor(year1 ? year1.monthlyCashflow : 0) }}>
+                {formatCurrency(year1 ? year1.monthlyCashflow : 0)} / mois
+              </div>
+            </div>
+            <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>Rendement net</div>
+              <div style={{ fontSize: 24, fontWeight: 700 }}>{formatPercent(netYield)}</div>
+            </div>
+            <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>TRI</div>
+              <div style={{ fontSize: 24, fontWeight: 700 }}>{formatPercent(irr)}</div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 16,
+              marginBottom: 18,
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>Projet</div>
+              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+                <div><strong>Type :</strong> Appartement locatif</div>
+                <div><strong>Stratégie :</strong> Location longue durée</div>
+                <div><strong>Horizon :</strong> {scenario.holdingPeriodYears} ans</div>
+                <div><strong>Loyer HC :</strong> {formatCurrency(scenario.monthlyRent)}</div>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>Financement</div>
+              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+                <div><strong>Coût total projet :</strong> {formatCurrency(totalProjectCost)}</div>
+                <div><strong>Apport :</strong> {formatCurrency(scenario.downPayment)}</div>
+                <div><strong>Dette :</strong> {formatCurrency(financedAmount)}</div>
+                <div><strong>Mensualité :</strong> {formatCurrency(monthlyDebt)}</div>
+                <div><strong>TAEG :</strong> {formatPercent(taeg)}</div>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>Performance</div>
+              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+                <div><strong>Rendement brut :</strong> {formatPercent(grossYield)}</div>
+                <div><strong>Rendement net :</strong> {formatPercent(netYield)}</div>
+                <div><strong>NOI :</strong> {formatCurrency(year1 ? year1.noi : 0)}</div>
+                <div><strong>Service dette :</strong> {formatCurrency(year1 ? year1.annualDebtService : 0)}</div>
+                <div><strong>DSCR :</strong> {formatPercent(dscr)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Tableau d’exploitation annuelle résumé</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ background: '#111827', color: '#fff' }}>
+                  <th style={{ padding: 6, textAlign: 'left' }}>Année</th>
+                  <th style={{ padding: 6, textAlign: 'left' }}>Loyers encaissés</th>
+                  <th style={{ padding: 6, textAlign: 'left' }}>NOI</th>
+                  <th style={{ padding: 6, textAlign: 'left' }}>Service dette</th>
+                  <th style={{ padding: 6, textAlign: 'left' }}>Cash-flow annuel</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pdfSummaryRows.map((row, index) => (
+                  <tr key={row.year} style={{ background: index % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{row.year}</td>
+                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{formatCurrency(row.annualCollectedRent)}</td>
+                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{formatCurrency(row.noi)}</td>
+                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{formatCurrency(row.annualDebtService)}</td>
+                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb', color: getCashColor(row.annualCashflow), fontWeight: 700 }}>
+                      {formatCurrency(row.annualCashflow)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Détail du TRI</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ background: '#111827', color: '#fff' }}>
+                  <th style={{ padding: 6, textAlign: 'left' }}>Flux</th>
+                  <th style={{ padding: 6, textAlign: 'left' }}>Montant</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cashflows.map((cashflow, index) => (
+                  <tr key={index} style={{ background: index % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>
+                      {index === 0 ? 'Apport initial' : `Année ${index}`}
+                    </td>
+                    <td
+                      style={{
+                        padding: 6,
+                        borderBottom: '1px solid #e5e7eb',
+                        color: cashflow >= 0 ? '#15803d' : '#dc2626',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {formatCurrency(cashflow)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ marginTop: 8, fontSize: 11, color: '#6b7280' }}>
+              TRI total de la simulation : <strong style={{ color: '#111827' }}>{formatPercent(irr)}</strong>
+            </div>
+          </div>
         </div>
       </div>
     </main>

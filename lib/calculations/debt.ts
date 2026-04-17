@@ -26,6 +26,21 @@ export function calculateTotalMonthlyDebt(input: ScenarioInput): number {
   return calculateMonthlyPayment(input) + calculateMonthlyInsurance(input);
 }
 
+export function calculateTAEG(input: ScenarioInput): number {
+  const financedAmount = calculateFinancedAmount(input);
+
+  if (financedAmount <= 0 || input.loanDurationYears <= 0) {
+    return input.annualInterestRate + input.annualInsuranceRate;
+  }
+
+  const annualizedLoanFees =
+    input.loanFees > 0
+      ? input.loanFees / financedAmount / input.loanDurationYears
+      : 0;
+
+  return input.annualInterestRate + input.annualInsuranceRate + annualizedLoanFees;
+}
+
 export function buildDebtSchedule(input: ScenarioInput): DebtYear[] {
   const principal = calculateFinancedAmount(input);
   const annualInsurance = principal * input.annualInsuranceRate;
