@@ -1598,135 +1598,153 @@ export default function HomePage() {
           </section>
         </div>
       </div>
+<div
+  id="pdf-bankable-export"
+  style={{
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '794px',
+    background: '#ffffff',
+    color: '#111827',
+    padding: '28px 32px',
+    boxSizing: 'border-box',
+    fontFamily: 'Arial, sans-serif',
+    visibility: 'hidden',
+    opacity: 0,
+    pointerEvents: 'none',
+  }}
+>
+  <div style={{ border: '1px solid #e5e7eb', borderRadius: 18, padding: 24 }}>
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 28, fontWeight: 700 }}>Rentab&apos;Immo</div>
+      <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>
+        Fiche synthèse investissement locatif
+      </div>
+    </div>
 
-      <div
-        id="pdf-bankable-export"
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '794px',
-          background: '#ffffff',
-          color: '#111827',
-          padding: '28px 32px',
-          boxSizing: 'border-box',
-          fontFamily: 'Arial, sans-serif',
-          visibility: 'hidden',
-          opacity: 0,
-          pointerEvents: 'none',
-        }}
-      >
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 18, padding: 24 }}>
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 28, fontWeight: 700 }}>Rentab&apos;Immo</div>
-            <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>
-              Fiche synthèse investissement locatif
-            </div>
-          </div>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 12,
+        marginBottom: 18,
+      }}
+    >
+      <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
+        <div style={{ fontSize: 12, color: '#6b7280' }}>Cash-flow</div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: getCashColor(year1 ? year1.monthlyCashflow : 0) }}>
+          {formatCurrency(year1 ? year1.monthlyCashflow : 0)} / mois
+        </div>
+      </div>
+      <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
+        <div style={{ fontSize: 12, color: '#6b7280' }}>Rendement net</div>
+        <div style={{ fontSize: 24, fontWeight: 700 }}>{formatPercent(netYield)}</div>
+      </div>
+      <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
+        <div style={{ fontSize: 12, color: '#6b7280' }}>TRI</div>
+        <div style={{ fontSize: 24, fontWeight: 700 }}>{formatPercent(irr)}</div>
+      </div>
+    </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 18 }}>
-            <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>Cash-flow</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: getCashColor(year1 ? year1.monthlyCashflow : 0) }}>
-                {formatCurrency(year1 ? year1.monthlyCashflow : 0)} / mois
-              </div>
-            </div>
-            <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>Rendement net</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>{formatPercent(netYield)}</div>
-            </div>
-            <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>TRI</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>{formatPercent(irr)}</div>
-            </div>
-          </div>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr 1fr',
+        gap: 16,
+        marginBottom: 18,
+      }}
+    >
+      <div>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Projet</div>
+        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+          <div><strong>Prix d’achat :</strong> {formatCurrency(scenario.purchasePrice)}</div>
+          <div><strong>Travaux :</strong> {formatCurrency(scenario.works)}</div>
+          <div><strong>Horizon :</strong> {scenario.holdingPeriodYears} ans</div>
+          <div><strong>Loyer HC :</strong> {formatCurrency(scenario.monthlyRent)}</div>
+        </div>
+      </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 18 }}>
-            <div>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>Projet</div>
-              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-                <div><strong>Type :</strong> Appartement locatif</div>
-                <div><strong>Stratégie :</strong> Location longue durée</div>
-                <div><strong>Horizon :</strong> {scenario.holdingPeriodYears} ans</div>
-                <div><strong>Loyer HC :</strong> {formatCurrency(scenario.monthlyRent)}</div>
-                <div><strong>Valeur après travaux :</strong> {formatCurrency(scenario.propertyValueAfterWorks)}</div>
-              </div>
-            </div>
+      <div>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Financement</div>
+        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+          <div><strong>Coût total projet :</strong> {formatCurrency(totalProjectCost)}</div>
+          <div><strong>Apport :</strong> {formatCurrency(scenario.downPayment)}</div>
+          <div><strong>Dette :</strong> {formatCurrency(financedAmount)}</div>
+          <div><strong>Mensualité :</strong> {formatCurrency(monthlyDebt)}</div>
+          <div><strong>TAEG :</strong> {formatPercent(taeg)}</div>
+        </div>
+      </div>
 
-            <div>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>Financement</div>
-              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-                <div><strong>Coût total projet :</strong> {formatCurrency(totalProjectCost)}</div>
-                <div><strong>Apport :</strong> {formatCurrency(scenario.downPayment)}</div>
-                <div><strong>Dette :</strong> {formatCurrency(financedAmount)}</div>
-                <div><strong>Mensualité :</strong> {formatCurrency(monthlyDebt)}</div>
-                <div><strong>TAEG :</strong> {formatPercent(taeg)}</div>
-              </div>
-            </div>
+      <div>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>Performance</div>
+        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+          <div><strong>Rendement brut :</strong> {formatPercent(grossYield)}</div>
+          <div><strong>Rendement net :</strong> {formatPercent(netYield)}</div>
+          <div><strong>NOI :</strong> {formatCurrency(year1 ? year1.noi : 0)}</div>
+          <div><strong>Service dette :</strong> {formatCurrency(year1 ? year1.annualDebtService : 0)}</div>
+        </div>
+      </div>
+    </div>
 
-            <div>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>Performance</div>
-              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-                <div><strong>Rendement brut :</strong> {formatPercent(grossYield)}</div>
-                <div><strong>Rendement net :</strong> {formatPercent(netYield)}</div>
-                <div><strong>NOI :</strong> {formatCurrency(year1 ? year1.noi : 0)}</div>
-                <div><strong>Service dette :</strong> {formatCurrency(year1 ? year1.annualDebtService : 0)}</div>
-                <div><strong>DSCR :</strong> {formatPercent(dscr)}</div>
-              </div>
-            </div>
-          </div>
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>Tableau d’exploitation annuelle résumé</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead>
+          <tr style={{ background: '#111827', color: '#fff' }}>
+            <th style={{ padding: 6, textAlign: 'left' }}>Année</th>
+            <th style={{ padding: 6, textAlign: 'left' }}>Loyers encaissés</th>
+            <th style={{ padding: 6, textAlign: 'left' }}>NOI</th>
+            <th style={{ padding: 6, textAlign: 'left' }}>Service dette</th>
+            <th style={{ padding: 6, textAlign: 'left' }}>Cash-flow annuel</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pdfSummaryRows.map((row, index) => (
+            <tr key={row.year} style={{ background: index % 2 === 0 ? '#fff' : '#f9fafb' }}>
+              <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{row.year}</td>
+              <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{formatCurrency(row.annualCollectedRent)}</td>
+              <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{formatCurrency(row.noi)}</td>
+              <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{formatCurrency(row.annualDebtService)}</td>
+              <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb', color: getCashColor(row.annualCashflow), fontWeight: 700 }}>
+                {formatCurrency(row.annualCashflow)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
 
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>Tableau d’exploitation annuelle résumé</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-              <thead>
-                <tr style={{ background: '#111827', color: '#fff' }}>
-                  <th style={{ padding: 6, textAlign: 'left' }}>Année</th>
-                  <th style={{ padding: 6, textAlign: 'left' }}>Loyers encaissés</th>
-                  <th style={{ padding: 6, textAlign: 'left' }}>NOI</th>
-                  <th style={{ padding: 6, textAlign: 'left' }}>Service dette</th>
-                  <th style={{ padding: 6, textAlign: 'left' }}>Cash-flow annuel</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pdfSummaryRows.map((row, index) => (
-                  <tr key={row.year} style={{ background: index % 2 === 0 ? '#fff' : '#f9fafb' }}>
-                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{row.year}</td>
-                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{formatCurrency(row.annualCollectedRent)}</td>
-                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{formatCurrency(row.noi)}</td>
-                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>{formatCurrency(row.annualDebtService)}</td>
-                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb', color: getCashColor(row.annualCashflow), fontWeight: 700 }}>
-                      {formatCurrency(row.annualCashflow)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div style={{ pageBreakBefore: 'always', breakBefore: 'page' }}>
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>Détail du TRI</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-              <thead>
-                <tr style={{ background: '#111827', color: '#fff' }}>
-                  <th style={{ padding: 6, textAlign: 'left' }}>Flux</th>
-                  <th style={{ padding: 6, textAlign: 'left' }}>Montant</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cashflows.map((cashflow, index) => (
-                  <tr key={index} style={{ background: index % 2 === 0 ? '#fff' : '#f9fafb' }}>
-                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>
-                      {index === 0 ? 'Apport initial' : `Année ${index}`}
-                    </td>
-                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb', color: cashflow >= 0 ? '#15803d' : '#dc2626', fontWeight: 700 }}>
-                      {formatCurrency(cashflow)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div style={{ marginTop: 8, fontSize: 11, color: '#6b7280' }}>
+    <div style={{ pageBreakBefore: 'always', breakBefore: 'page' }}>
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>Détail du TRI</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead>
+          <tr style={{ background: '#111827', color: '#fff' }}>
+            <th style={{ padding: 6, textAlign: 'left' }}>Flux</th>
+            <th style={{ padding: 6, textAlign: 'left' }}>Montant</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cashflows.map((cashflow, index) => (
+            <tr key={index} style={{ background: index % 2 === 0 ? '#fff' : '#f9fafb' }}>
+              <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>
+                {index === 0 ? 'Apport initial' : `Année ${index}`}
+              </td>
+              <td
+                style={{
+                  padding: 6,
+                  borderBottom: '1px solid #e5e7eb',
+                  color: cashflow >= 0 ? '#15803d' : '#dc2626',
+                  fontWeight: 700,
+                }}
+              >
+                {formatCurrency(cashflow)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ marginTop: 8, fontSize: 11, color: '#6b7280' }}>
               TRI total de la simulation : <strong style={{ color: '#111827' }}>{formatPercent(irr)}</strong>
             </div>
           </div>
