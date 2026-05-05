@@ -7,6 +7,7 @@ export interface ScenarioInput {
   purchasePrice: number;
   notaryFeesRate: number;
   works: number;
+  propertyValueAfterWorks: number;
   furniture: number;
   loanFees: number;
 

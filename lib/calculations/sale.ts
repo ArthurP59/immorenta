@@ -1,10 +1,16 @@
 import { ScenarioInput } from './contracts';
 import { calculateRemainingLoanBalance } from './debt';
 import { buildProjection } from './operations';
-import { calculateTotalProjectCost } from './acquisition';
+
+function getPropertyValueAfterWorks(input: ScenarioInput): number {
+  return input.propertyValueAfterWorks || input.purchasePrice + input.works;
+}
 
 export function calculateGrossSalePrice(input: ScenarioInput): number {
-  return input.purchasePrice * Math.pow(1 + input.annualPriceGrowthRate, input.holdingPeriodYears);
+  return (
+    getPropertyValueAfterWorks(input) *
+    Math.pow(1 + input.annualPriceGrowthRate, input.holdingPeriodYears)
+  );
 }
 
 export function calculateSaleFees(input: ScenarioInput): number {
@@ -22,11 +28,11 @@ export function calculateNetSaleProceeds(input: ScenarioInput): number {
 export function calculateCapAchat(input: ScenarioInput): number {
   const projection = buildProjection(input);
   const year1 = projection[0];
-  const totalProjectCost = calculateTotalProjectCost(input);
+  const propertyValueAfterWorks = getPropertyValueAfterWorks(input);
 
-  if (!year1 || totalProjectCost === 0) return 0;
+  if (!year1 || propertyValueAfterWorks === 0) return 0;
 
-  return year1.annualGrossRent / totalProjectCost;
+  return year1.annualGrossRent / propertyValueAfterWorks;
 }
 
 export function calculateCapSortie(input: ScenarioInput): number {

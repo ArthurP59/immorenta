@@ -133,9 +133,9 @@ const GLOSSARY: Record<string, GlossaryItem> = {
   },
   capAchat: {
     title: 'Cap achat',
-    short: 'NOI initial / prix d’achat.',
+    short: 'NOI initial / valeur après travaux.',
     full:
-      "Le cap rate à l’achat compare le NOI initial à la valeur d’acquisition. Il permet d’évaluer rapidement la performance économique du bien au moment de l’achat.",
+      "Le cap rate à l’achat compare le NOI initial à la valeur du bien après travaux. Il permet d’évaluer rapidement la performance économique réelle du bien une fois les travaux réalisés.",
   },
   capSortie: {
     title: 'Cap sortie',
@@ -405,6 +405,14 @@ function buildComparisonScenarios(baseScenario: ScenarioInput) {
   ];
 }
 
+function normalizeScenario(input: ScenarioInput): ScenarioInput {
+  return {
+    ...input,
+    propertyValueAfterWorks:
+      input.propertyValueAfterWorks || input.purchasePrice + input.works,
+  };
+}
+
 function GlossaryInline({
   termKey,
   activeTerm,
@@ -418,14 +426,7 @@ function GlossaryInline({
   const isOpen = activeTerm === termKey;
 
   return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        flexWrap: 'wrap',
-      }}
-    >
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
       <span>{item.title}</span>
       <button
         type="button"
@@ -488,15 +489,7 @@ function GlossaryGuide({
       {entries.map(([key, item]) => {
         const isOpen = activeTerm === key;
         return (
-          <div
-            key={key}
-            style={{
-              border: '1px solid #e5e7eb',
-              borderRadius: 12,
-              background: '#fff',
-              overflow: 'hidden',
-            }}
-          >
+          <div key={key} style={{ border: '1px solid #e5e7eb', borderRadius: 12, background: '#fff', overflow: 'hidden' }}>
             <button
               type="button"
               onClick={() => onToggle(key)}
@@ -514,15 +507,7 @@ function GlossaryGuide({
             </button>
 
             {isOpen ? (
-              <div
-                style={{
-                  padding: '0 16px 16px 16px',
-                  color: '#374151',
-                  fontSize: 14,
-                  lineHeight: 1.6,
-                  background: '#f3f4f6',
-                }}
-              >
+              <div style={{ padding: '0 16px 16px 16px', color: '#374151', fontSize: 14, lineHeight: 1.6, background: '#f3f4f6' }}>
                 {item.full}
               </div>
             ) : null}
@@ -585,7 +570,12 @@ export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  const [scenario, setScenario] = useState<ScenarioInput>(defaultScenario);
+  const [scenario, setScenario] = useState<ScenarioInput>(
+    normalizeScenario(defaultScenario),
+  );
+  const [propertyValueAfterWorksEdited, setPropertyValueAfterWorksEdited] =
+    useState(false);
+
   const [tableMode, setTableMode] = useState<'resume' | 'detail'>('resume');
 
   const [savedSimulations, setSavedSimulations] = useState<SavedSimulation[]>([]);
@@ -598,7 +588,7 @@ export default function HomePage() {
 
   const [comparisonScenarios, setComparisonScenarios] = useState<
     { id: string; name: string; data: ScenarioInput }[]
-  >(buildComparisonScenarios(defaultScenario));
+  >(buildComparisonScenarios(normalizeScenario(defaultScenario)));
 
   useEffect(() => {
     const unsubscribe = subscribeToAuth((nextUser) => {
@@ -644,11 +634,30 @@ export default function HomePage() {
   }
 
   function rebuildComparisonScenarios(baseScenario: ScenarioInput) {
-    setComparisonScenarios(buildComparisonScenarios(baseScenario));
+    setComparisonScenarios(buildComparisonScenarios(normalizeScenario(baseScenario)));
   }
 
   function update<K extends keyof ScenarioInput>(key: K, value: ScenarioInput[K]) {
-    setScenario((prev) => ({ ...prev, [key]: value }));
+    setScenario((prev) => {
+      const next = {
+        ...prev,
+        [key]: value,
+      };
+
+      if (key === 'propertyValueAfterWorks') {
+        setPropertyValueAfterWorksEdited(true);
+        return next;
+      }
+
+      if (
+        !propertyValueAfterWorksEdited &&
+        (key === 'purchasePrice' || key === 'works')
+      ) {
+        next.propertyValueAfterWorks = next.purchasePrice + next.works;
+      }
+
+      return next;
+    });
 
     if (
       key !== 'monthlyRent' &&
@@ -656,10 +665,25 @@ export default function HomePage() {
       key !== 'annualPriceGrowthRate'
     ) {
       setComparisonScenarios((prev) =>
-        prev.map((item) => ({
-          ...item,
-          data: { ...item.data, [key]: value },
-        })),
+        prev.map((item) => {
+          const nextData = {
+            ...item.data,
+            [key]: value,
+          };
+
+          if (
+            !propertyValueAfterWorksEdited &&
+            (key === 'purchasePrice' || key === 'works')
+          ) {
+            nextData.propertyValueAfterWorks =
+              nextData.purchasePrice + nextData.works;
+          }
+
+          return {
+            ...item,
+            data: nextData,
+          };
+        }),
       );
     }
 
@@ -844,88 +868,94 @@ export default function HomePage() {
   }
 
   function handleLoadSimulation(simulation: SavedSimulation) {
-    setScenario(simulation.scenario);
+    const normalizedScenario = normalizeScenario(simulation.scenario);
+
+    setScenario(normalizedScenario);
+    setPropertyValueAfterWorksEdited(Boolean(simulation.scenario.propertyValueAfterWorks));
     setActiveSimulationId(simulation.id);
-    rebuildComparisonScenarios(simulation.scenario);
+    rebuildComparisonScenarios(normalizedScenario);
     setUiMessage(`✅ Simulation "${simulation.name}" chargée`);
   }
 
   function handleResetScenario() {
-    setScenario(defaultScenario);
+    const normalizedScenario = normalizeScenario(defaultScenario);
+
+    setScenario(normalizedScenario);
+    setPropertyValueAfterWorksEdited(false);
     setActiveSimulationId(null);
-    rebuildComparisonScenarios(defaultScenario);
+    rebuildComparisonScenarios(normalizedScenario);
     setUiMessage('✅ Retour au scénario par défaut');
   }
 
-async function handleExportPdf() {
-  const pdfElement = document.getElementById('pdf-bankable-export');
-  if (!pdfElement) return;
+  async function handleExportPdf() {
+    const pdfElement = document.getElementById('pdf-bankable-export');
+    if (!pdfElement) return;
 
-  const html2pdfModule = await import('html2pdf.js');
-  const html2pdf = (html2pdfModule as any).default;
+    const html2pdfModule = await import('html2pdf.js');
+    const html2pdf = (html2pdfModule as any).default;
 
-  const originalVisibility = pdfElement.style.visibility;
-  const originalOpacity = pdfElement.style.opacity;
-  const originalZIndex = pdfElement.style.zIndex;
-  const originalPointerEvents = pdfElement.style.pointerEvents;
+    const originalVisibility = pdfElement.style.visibility;
+    const originalOpacity = pdfElement.style.opacity;
+    const originalZIndex = pdfElement.style.zIndex;
+    const originalPointerEvents = pdfElement.style.pointerEvents;
 
-  pdfElement.style.visibility = 'visible';
-  pdfElement.style.opacity = '1';
-  pdfElement.style.zIndex = '9999';
-  pdfElement.style.pointerEvents = 'none';
+    pdfElement.style.visibility = 'visible';
+    pdfElement.style.opacity = '1';
+    pdfElement.style.zIndex = '9999';
+    pdfElement.style.pointerEvents = 'none';
 
-  await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
-  const clonedElement = pdfElement.cloneNode(true) as HTMLElement;
-  clonedElement.style.position = 'static';
-  clonedElement.style.visibility = 'visible';
-  clonedElement.style.opacity = '1';
-  clonedElement.style.zIndex = 'auto';
-  clonedElement.style.pointerEvents = 'none';
-  clonedElement.style.width = '794px';
-  clonedElement.style.background = '#ffffff';
-  clonedElement.style.margin = '0 auto';
+    const clonedElement = pdfElement.cloneNode(true) as HTMLElement;
+    clonedElement.style.position = 'static';
+    clonedElement.style.visibility = 'visible';
+    clonedElement.style.opacity = '1';
+    clonedElement.style.zIndex = 'auto';
+    clonedElement.style.pointerEvents = 'none';
+    clonedElement.style.width = '794px';
+    clonedElement.style.background = '#ffffff';
+    clonedElement.style.margin = '0 auto';
 
-  const tempContainer = document.createElement('div');
-  tempContainer.style.position = 'fixed';
-  tempContainer.style.inset = '0';
-  tempContainer.style.background = '#ffffff';
-  tempContainer.style.zIndex = '999999';
-  tempContainer.style.overflow = 'auto';
-  tempContainer.style.padding = '24px';
-  tempContainer.appendChild(clonedElement);
-  document.body.appendChild(tempContainer);
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'fixed';
+    tempContainer.style.inset = '0';
+    tempContainer.style.background = '#ffffff';
+    tempContainer.style.zIndex = '999999';
+    tempContainer.style.overflow = 'auto';
+    tempContainer.style.padding = '24px';
+    tempContainer.appendChild(clonedElement);
+    document.body.appendChild(tempContainer);
 
-  await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
-  try {
-    await html2pdf()
-      .set({
-        margin: 0,
-        filename: `rentab-immo-synthese-${scenario.name || 'simulation'}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-        },
-        jsPDF: {
-          unit: 'mm',
-          format: 'a4',
-          orientation: 'portrait',
-        },
-      })
-      .from(clonedElement)
-      .save();
-  } finally {
-    document.body.removeChild(tempContainer);
-    pdfElement.style.visibility = originalVisibility;
-    pdfElement.style.opacity = originalOpacity;
-    pdfElement.style.zIndex = originalZIndex;
-    pdfElement.style.pointerEvents = originalPointerEvents;
+    try {
+      await html2pdf()
+        .set({
+          margin: 0,
+          filename: `rentab-immo-synthese-${scenario.name || 'simulation'}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            logging: false,
+          },
+          jsPDF: {
+            unit: 'mm',
+            format: 'a4',
+            orientation: 'portrait',
+          },
+        })
+        .from(clonedElement)
+        .save();
+    } finally {
+      document.body.removeChild(tempContainer);
+      pdfElement.style.visibility = originalVisibility;
+      pdfElement.style.opacity = originalOpacity;
+      pdfElement.style.zIndex = originalZIndex;
+      pdfElement.style.pointerEvents = originalPointerEvents;
+    }
   }
-}
 
   const notaryFees = calculateNotaryFees(scenario);
   const totalProjectCost = calculateTotalProjectCost(scenario);
@@ -1035,13 +1065,7 @@ async function handleExportPdf() {
         minWidth: 0,
       }}
     >
-      <div
-        style={{
-          ...sectionCss,
-          marginTop: 0,
-          padding: isMobile ? 14 : 20,
-        }}
-      >
+      <div style={{ ...sectionCss, marginTop: 0, padding: isMobile ? 14 : 20 }}>
         <div
           style={{
             display: 'flex',
@@ -1054,24 +1078,10 @@ async function handleExportPdf() {
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <h1
-              style={{
-                margin: 0,
-                marginBottom: 8,
-                fontSize: isMobile ? 28 : 36,
-                lineHeight: 1.1,
-              }}
-            >
+            <h1 style={{ margin: 0, marginBottom: 8, fontSize: isMobile ? 28 : 36, lineHeight: 1.1 }}>
               Rentab&apos;Immo
             </h1>
-            <p
-              style={{
-                color: '#4b5563',
-                margin: 0,
-                fontSize: isMobile ? 14 : 16,
-                lineHeight: 1.4,
-              }}
-            >
+            <p style={{ color: '#4b5563', margin: 0, fontSize: isMobile ? 14 : 16, lineHeight: 1.4 }}>
               Simulez, comparez et pilotez vos investissements locatifs.
             </p>
           </div>
@@ -1099,17 +1109,7 @@ async function handleExportPdf() {
       </div>
 
       <div style={{ ...sectionCss, marginTop: 0, marginBottom: 16, padding: isMobile ? 14 : 20 }}>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: 16,
-            flexWrap: 'wrap',
-            alignItems: 'flex-start',
-            flexDirection: isMobile ? 'column' : 'row',
-            minWidth: 0,
-          }}
-        >
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start', flexDirection: isMobile ? 'column' : 'row', minWidth: 0 }}>
           <div>
             <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: isMobile ? 20 : 24 }}>
               Mes simulations
@@ -1120,59 +1120,26 @@ async function handleExportPdf() {
           </div>
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gap: 12,
-            marginTop: 20,
-            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(260px, max-content))',
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleSaveSimulation}
-            style={primaryButtonStyle(isMobile)}
-          >
+        <div style={{ display: 'grid', gap: 12, marginTop: 20, gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(260px, max-content))' }}>
+          <button type="button" onClick={handleSaveSimulation} style={primaryButtonStyle(isMobile)}>
             Enregistrer la simulation actuelle
           </button>
 
-          <button
-            type="button"
-            onClick={handleUpdateCurrentSimulation}
-            style={secondaryButtonStyle(isMobile)}
-          >
+          <button type="button" onClick={handleUpdateCurrentSimulation} style={secondaryButtonStyle(isMobile)}>
             Mettre à jour la simulation active
           </button>
 
-          <button
-            type="button"
-            onClick={handleResetScenario}
-            style={secondaryButtonStyle(isMobile)}
-          >
+          <button type="button" onClick={handleResetScenario} style={secondaryButtonStyle(isMobile)}>
             Revenir au scénario par défaut
           </button>
 
-          <button
-            type="button"
-            onClick={handleExportPdf}
-            style={primaryButtonStyle(isMobile)}
-          >
+          <button type="button" onClick={handleExportPdf} style={primaryButtonStyle(isMobile)}>
             Exporter en PDF
           </button>
         </div>
 
         {uiMessage ? (
-          <div
-            style={{
-              marginTop: 12,
-              padding: 12,
-              borderRadius: 10,
-              background: '#f3f4f6',
-              border: '1px solid #e5e7eb',
-              color: '#111827',
-              fontSize: 14,
-            }}
-          >
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#f3f4f6', border: '1px solid #e5e7eb', color: '#111827', fontSize: 14 }}>
             {uiMessage}
           </div>
         ) : null}
@@ -1186,43 +1153,18 @@ async function handleExportPdf() {
         </div>
 
         {simulationsError ? (
-          <div
-            style={{
-              marginTop: 16,
-              padding: 14,
-              border: '1px solid #fecaca',
-              borderRadius: 10,
-              background: '#fef2f2',
-              color: '#b91c1c',
-            }}
-          >
+          <div style={{ marginTop: 16, padding: 14, border: '1px solid #fecaca', borderRadius: 10, background: '#fef2f2', color: '#b91c1c' }}>
             {simulationsError}
           </div>
         ) : null}
 
         <div style={{ marginTop: 18, display: 'grid', gap: 12 }}>
           {simulationsLoading ? (
-            <div
-              style={{
-                padding: 14,
-                border: '1px solid #e5e7eb',
-                borderRadius: 10,
-                background: '#fff',
-                color: '#6b7280',
-              }}
-            >
+            <div style={{ padding: 14, border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff', color: '#6b7280' }}>
               Chargement des simulations...
             </div>
           ) : savedSimulations.length === 0 ? (
-            <div
-              style={{
-                padding: 14,
-                border: '1px solid #e5e7eb',
-                borderRadius: 10,
-                background: '#fff',
-                color: '#6b7280',
-              }}
-            >
+            <div style={{ padding: 14, border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff', color: '#6b7280' }}>
               Aucune simulation enregistrée pour le moment.
             </div>
           ) : (
@@ -1247,33 +1189,14 @@ async function handleExportPdf() {
                   <div style={{ fontWeight: 700, color: '#111827' }}>{simulation.name}</div>
                 </div>
 
-                <div
-                  style={{
-                    display: 'grid',
-                    gap: 8,
-                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, max-content)',
-                    width: isMobile ? '100%' : 'auto',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleLoadSimulation(simulation)}
-                    style={smallPrimaryButtonStyle(isMobile)}
-                  >
+                <div style={{ display: 'grid', gap: 8, gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, max-content)', width: isMobile ? '100%' : 'auto' }}>
+                  <button type="button" onClick={() => handleLoadSimulation(simulation)} style={smallPrimaryButtonStyle(isMobile)}>
                     Charger
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRenameSimulation(simulation)}
-                    style={smallSecondaryButtonStyle(isMobile)}
-                  >
+                  <button type="button" onClick={() => handleRenameSimulation(simulation)} style={smallSecondaryButtonStyle(isMobile)}>
                     Renommer
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteSimulation(simulation.id)}
-                    style={dangerButtonStyle(isMobile)}
-                  >
+                  <button type="button" onClick={() => handleDeleteSimulation(simulation.id)} style={dangerButtonStyle(isMobile)}>
                     Supprimer
                   </button>
                 </div>
@@ -1286,12 +1209,7 @@ async function handleExportPdf() {
       <div
         style={
           isMobile
-            ? {
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 16,
-                minWidth: 0,
-              }
+            ? { display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }
             : appGridStyle
         }
       >
@@ -1314,51 +1232,31 @@ async function handleExportPdf() {
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
               <div>
                 <label style={labelCss}>Prix d’achat (Frais agence acquéreur inclus)</label>
-                <NumberInput
-                  value={scenario.purchasePrice}
-                  integer
-                  onCommit={(value) => update('purchasePrice', value)}
-                />
+                <NumberInput value={scenario.purchasePrice} integer onCommit={(value) => update('purchasePrice', value)} />
               </div>
               <div>
                 <label style={labelCss}>Frais de notaire (%)</label>
-                <NumberInput
-                  value={scenario.notaryFeesRate}
-                  step="0.001"
-                  onCommit={(value) => update('notaryFeesRate', value)}
-                />
+                <NumberInput value={scenario.notaryFeesRate} step="0.001" onCommit={(value) => update('notaryFeesRate', value)} />
               </div>
               <div>
                 <label style={labelCss}>Travaux initiaux</label>
-                <NumberInput
-                  value={scenario.works}
-                  integer
-                  onCommit={(value) => update('works', value)}
-                />
+                <NumberInput value={scenario.works} integer onCommit={(value) => update('works', value)} />
+              </div>
+              <div>
+                <label style={labelCss}>Valeur du bien après travaux</label>
+                <NumberInput value={scenario.propertyValueAfterWorks} integer onCommit={(value) => update('propertyValueAfterWorks', value)} />
               </div>
               <div>
                 <label style={labelCss}>Mobilier initial</label>
-                <NumberInput
-                  value={scenario.furniture}
-                  integer
-                  onCommit={(value) => update('furniture', value)}
-                />
+                <NumberInput value={scenario.furniture} integer onCommit={(value) => update('furniture', value)} />
               </div>
               <div>
                 <label style={labelCss}>Frais de dossier crédit</label>
-                <NumberInput
-                  value={scenario.loanFees}
-                  integer
-                  onCommit={(value) => update('loanFees', value)}
-                />
+                <NumberInput value={scenario.loanFees} integer onCommit={(value) => update('loanFees', value)} />
               </div>
               <div>
                 <label style={labelCss}>Croissance annuelle de valeur du bien</label>
-                <NumberInput
-                  value={scenario.annualPriceGrowthRate}
-                  step="0.001"
-                  onCommit={(value) => update('annualPriceGrowthRate', value)}
-                />
+                <NumberInput value={scenario.annualPriceGrowthRate} step="0.001" onCommit={(value) => update('annualPriceGrowthRate', value)} />
               </div>
             </div>
           </details>
@@ -1368,91 +1266,47 @@ async function handleExportPdf() {
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
               <div>
                 <label style={labelCss}>Loyer mensuel hors charges</label>
-                <NumberInput
-                  value={scenario.monthlyRent}
-                  integer
-                  onCommit={(value) => update('monthlyRent', value)}
-                />
+                <NumberInput value={scenario.monthlyRent} integer onCommit={(value) => update('monthlyRent', value)} />
               </div>
               <div>
                 <label style={labelCss}>Vacance locative (%)</label>
-                <NumberInput
-                  value={scenario.vacancyRate}
-                  step="0.001"
-                  onCommit={(value) => update('vacancyRate', value)}
-                />
+                <NumberInput value={scenario.vacancyRate} step="0.001" onCommit={(value) => update('vacancyRate', value)} />
               </div>
               <div>
                 <label style={labelCss}>Croissance annuelle des loyers</label>
-                <NumberInput
-                  value={scenario.annualRentGrowthRate}
-                  step="0.001"
-                  onCommit={(value) => update('annualRentGrowthRate', value)}
-                />
+                <NumberInput value={scenario.annualRentGrowthRate} step="0.001" onCommit={(value) => update('annualRentGrowthRate', value)} />
               </div>
               <div>
                 <label style={labelCss}>Croissance annuelle des charges</label>
-                <NumberInput
-                  value={scenario.annualChargesGrowthRate}
-                  step="0.001"
-                  onCommit={(value) => update('annualChargesGrowthRate', value)}
-                />
+                <NumberInput value={scenario.annualChargesGrowthRate} step="0.001" onCommit={(value) => update('annualChargesGrowthRate', value)} />
               </div>
               <div>
                 <label style={labelCss}>Charges de copro annuelles non récupérables</label>
-                <NumberInput
-                  value={scenario.nonRecoverableChargesAnnual}
-                  integer
-                  onCommit={(value) => update('nonRecoverableChargesAnnual', value)}
-                />
+                <NumberInput value={scenario.nonRecoverableChargesAnnual} integer onCommit={(value) => update('nonRecoverableChargesAnnual', value)} />
               </div>
               <div>
                 <label style={labelCss}>Taxe foncière</label>
-                <NumberInput
-                  value={scenario.propertyTaxAnnual}
-                  integer
-                  onCommit={(value) => update('propertyTaxAnnual', value)}
-                />
+                <NumberInput value={scenario.propertyTaxAnnual} integer onCommit={(value) => update('propertyTaxAnnual', value)} />
               </div>
               <div>
                 <label style={labelCss}>Assurance propriétaire annuelle (PNO)</label>
-                <NumberInput
-                  value={scenario.pnoInsuranceAnnual}
-                  integer
-                  onCommit={(value) => update('pnoInsuranceAnnual', value)}
-                />
+                <NumberInput value={scenario.pnoInsuranceAnnual} integer onCommit={(value) => update('pnoInsuranceAnnual', value)} />
               </div>
               <div>
                 <label style={labelCss}>Gestion locative (% loyers encaissés)</label>
-                <NumberInput
-                  value={scenario.managementFeesRate}
-                  step="0.001"
-                  onCommit={(value) => update('managementFeesRate', value)}
-                />
+                <NumberInput value={scenario.managementFeesRate} step="0.001" onCommit={(value) => update('managementFeesRate', value)} />
               </div>
               <div>
                 <label style={labelCss}>Gestion comptable annuelle</label>
-                <NumberInput
-                  value={scenario.accountingAnnual}
-                  integer
-                  onCommit={(value) => update('accountingAnnual', value)}
-                />
+                <NumberInput value={scenario.accountingAnnual} integer onCommit={(value) => update('accountingAnnual', value)} />
               </div>
               <div>
                 <label style={labelCss}>Maintenance annuelle</label>
-                <NumberInput
-                  value={scenario.maintenanceAnnual}
-                  integer
-                  onCommit={(value) => update('maintenanceAnnual', value)}
-                />
+                <NumberInput value={scenario.maintenanceAnnual} integer onCommit={(value) => update('maintenanceAnnual', value)} />
               </div>
               <div>
                 <label style={labelCss}>Autres charges annuelles</label>
-                <NumberInput
-                  value={scenario.otherChargesAnnual}
-                  integer
-                  onCommit={(value) => update('otherChargesAnnual', value)}
-                />
+                <NumberInput value={scenario.otherChargesAnnual} integer onCommit={(value) => update('otherChargesAnnual', value)} />
               </div>
             </div>
           </details>
@@ -1462,51 +1316,27 @@ async function handleExportPdf() {
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
               <div>
                 <label style={labelCss}>Apport</label>
-                <NumberInput
-                  value={scenario.downPayment}
-                  integer
-                  onCommit={(value) => update('downPayment', value)}
-                />
+                <NumberInput value={scenario.downPayment} integer onCommit={(value) => update('downPayment', value)} />
               </div>
               <div>
                 <label style={labelCss}>Taux nominal annuel</label>
-                <NumberInput
-                  value={scenario.annualInterestRate}
-                  step="0.001"
-                  onCommit={(value) => update('annualInterestRate', value)}
-                />
+                <NumberInput value={scenario.annualInterestRate} step="0.001" onCommit={(value) => update('annualInterestRate', value)} />
               </div>
               <div>
                 <label style={labelCss}>Taux assurance emprunteur</label>
-                <NumberInput
-                  value={scenario.annualInsuranceRate}
-                  step="0.001"
-                  onCommit={(value) => update('annualInsuranceRate', value)}
-                />
+                <NumberInput value={scenario.annualInsuranceRate} step="0.001" onCommit={(value) => update('annualInsuranceRate', value)} />
               </div>
               <div>
                 <label style={labelCss}>Durée du prêt (années)</label>
-                <NumberInput
-                  value={scenario.loanDurationYears}
-                  integer
-                  onCommit={(value) => update('loanDurationYears', value)}
-                />
+                <NumberInput value={scenario.loanDurationYears} integer onCommit={(value) => update('loanDurationYears', value)} />
               </div>
               <div>
                 <label style={labelCss}>Durée de détention</label>
-                <NumberInput
-                  value={scenario.holdingPeriodYears}
-                  integer
-                  onCommit={(value) => update('holdingPeriodYears', value)}
-                />
+                <NumberInput value={scenario.holdingPeriodYears} integer onCommit={(value) => update('holdingPeriodYears', value)} />
               </div>
               <div>
                 <label style={labelCss}>Frais de vente (%)</label>
-                <NumberInput
-                  value={scenario.saleFeesRate}
-                  step="0.001"
-                  onCommit={(value) => update('saleFeesRate', value)}
-                />
+                <NumberInput value={scenario.saleFeesRate} step="0.001" onCommit={(value) => update('saleFeesRate', value)} />
               </div>
             </div>
           </details>
@@ -1519,11 +1349,7 @@ async function handleExportPdf() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: isSmallMobile
-                  ? '1fr'
-                  : isMobile
-                  ? '1fr 1fr'
-                  : 'repeat(auto-fit, minmax(220px, 1fr))',
+                gridTemplateColumns: isSmallMobile ? '1fr' : isMobile ? '1fr 1fr' : 'repeat(auto-fit, minmax(220px, 1fr))',
                 gap: 14,
                 marginTop: 16,
                 marginBottom: 18,
@@ -1531,123 +1357,49 @@ async function handleExportPdf() {
             >
               <div style={cardCss}>
                 <div style={{ color: '#6b7280', fontSize: 13 }}>Coût total projet</div>
-                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, lineHeight: 1.2 }}>
-                  {formatCurrency(totalProjectCost)}
-                </div>
+                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, lineHeight: 1.2 }}>{formatCurrency(totalProjectCost)}</div>
               </div>
-
               <div style={cardCss}>
                 <div style={{ color: '#6b7280', fontSize: 13 }}>Cash investi</div>
-                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, lineHeight: 1.2 }}>
-                  {formatCurrency(initialCashInvested)}
-                </div>
+                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, lineHeight: 1.2 }}>{formatCurrency(initialCashInvested)}</div>
               </div>
-
               <div style={cardCss}>
                 <div style={{ color: '#6b7280', fontSize: 13 }}>
-                  <GlossaryInline
-                    termKey="cashflow"
-                    activeTerm={activeGlossaryTerm}
-                    onToggle={toggleGlossary}
-                  />
+                  <GlossaryInline termKey="cashflow" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} />
                 </div>
-                <div
-                  style={{
-                    fontSize: isMobile ? 22 : 28,
-                    fontWeight: 700,
-                    lineHeight: 1.2,
-                    color: getCashColor(year1 ? year1.monthlyCashflow : 0),
-                  }}
-                >
+                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, lineHeight: 1.2, color: getCashColor(year1 ? year1.monthlyCashflow : 0) }}>
                   {formatCurrency(year1 ? year1.monthlyCashflow : 0)}
                 </div>
               </div>
-
               <div style={cardCss}>
                 <div style={{ color: '#6b7280', fontSize: 13 }}>
-                  <GlossaryInline
-                    termKey="tri"
-                    activeTerm={activeGlossaryTerm}
-                    onToggle={toggleGlossary}
-                  />
+                  <GlossaryInline termKey="tri" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} />
                 </div>
-                <div
-                  style={{
-                    fontSize: isMobile ? 22 : 28,
-                    fontWeight: 700,
-                    lineHeight: 1.2,
-                    color: getIrrColor(irr),
-                  }}
-                >
-                  {formatPercent(irr)}
-                </div>
+                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, lineHeight: 1.2, color: getIrrColor(irr) }}>{formatPercent(irr)}</div>
               </div>
-
               <div style={cardCss}>
                 <div style={{ color: '#6b7280', fontSize: 13 }}>
-                  <GlossaryInline
-                    termKey="rendementBrut"
-                    activeTerm={activeGlossaryTerm}
-                    onToggle={toggleGlossary}
-                  />
+                  <GlossaryInline termKey="rendementBrut" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} />
                 </div>
-                <div
-                  style={{
-                    fontSize: isMobile ? 22 : 28,
-                    fontWeight: 700,
-                    lineHeight: 1.2,
-                    color: getGrossYieldColor(grossYield),
-                  }}
-                >
-                  {formatPercent(grossYield)}
-                </div>
+                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, lineHeight: 1.2, color: getGrossYieldColor(grossYield) }}>{formatPercent(grossYield)}</div>
               </div>
-
               <div style={cardCss}>
                 <div style={{ color: '#6b7280', fontSize: 13 }}>
-                  <GlossaryInline
-                    termKey="rendementNet"
-                    activeTerm={activeGlossaryTerm}
-                    onToggle={toggleGlossary}
-                  />
+                  <GlossaryInline termKey="rendementNet" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} />
                 </div>
-                <div
-                  style={{
-                    fontSize: isMobile ? 22 : 28,
-                    fontWeight: 700,
-                    lineHeight: 1.2,
-                    color: getNetYieldColor(netYield),
-                  }}
-                >
-                  {formatPercent(netYield)}
-                </div>
+                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, lineHeight: 1.2, color: getNetYieldColor(netYield) }}>{formatPercent(netYield)}</div>
               </div>
             </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-                gap: 14,
-              }}
-            >
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
               <div style={cardCss}>
                 <h3 style={{ marginTop: 0, fontSize: isMobile ? 17 : 18 }}>Coût d’acquisition</h3>
-                <p>
-                  <strong>
-                    <GlossaryInline
-                      termKey="prixFai"
-                      activeTerm={activeGlossaryTerm}
-                      onToggle={toggleGlossary}
-                    />
-                    {' :'}
-                  </strong>{' '}
-                  {formatCurrency(scenario.purchasePrice)}
-                </p>
+                <p><strong><GlossaryInline termKey="prixFai" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} /> {' :'}</strong> {formatCurrency(scenario.purchasePrice)}</p>
                 <p><strong>Frais de notaire :</strong> {formatCurrency(notaryFees)}</p>
                 <p><strong>Frais de dossier crédit :</strong> {formatCurrency(scenario.loanFees)}</p>
                 <p><strong>Mobilier :</strong> {formatCurrency(scenario.furniture)}</p>
                 <p><strong>Travaux :</strong> {formatCurrency(scenario.works)}</p>
+                <p><strong>Valeur du bien après travaux :</strong> {formatCurrency(scenario.propertyValueAfterWorks)}</p>
                 <p><strong>Coût total projet :</strong> {formatCurrency(totalProjectCost)}</p>
                 <p><strong>Dont apport :</strong> {formatCurrency(scenario.downPayment)}</p>
               </div>
@@ -1656,17 +1408,7 @@ async function handleExportPdf() {
                 <h3 style={{ marginTop: 0, fontSize: isMobile ? 17 : 18 }}>Dette / cash-flow</h3>
                 <p><strong>Dette initiale :</strong> {formatCurrency(financedAmount)}</p>
                 <p><strong>Mensualité hors assurance :</strong> {formatCurrency(monthlyPayment)}</p>
-                <p>
-                  <strong>
-                    <GlossaryInline
-                      termKey="assurance"
-                      activeTerm={activeGlossaryTerm}
-                      onToggle={toggleGlossary}
-                    />
-                    {' :'}
-                  </strong>{' '}
-                  {formatCurrency(monthlyInsurance)}
-                </p>
+                <p><strong><GlossaryInline termKey="assurance" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} /> {' :'}</strong> {formatCurrency(monthlyInsurance)}</p>
                 <p><strong>Mensualité totale :</strong> {formatCurrency(monthlyDebt)}</p>
                 <p><strong>TAEG :</strong> {formatPercent(taeg)}</p>
                 <p><strong>Service de la dette année 1 :</strong> {formatCurrency(year1 ? year1.annualDebtService : 0)}</p>
@@ -1674,85 +1416,17 @@ async function handleExportPdf() {
 
               <div style={cardCss}>
                 <h3 style={{ marginTop: 0, fontSize: isMobile ? 17 : 18 }}>Rendements</h3>
+                <p><strong><GlossaryInline termKey="rendementBrut" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} /> {' :'}</strong> <span style={{ color: getGrossYieldColor(grossYield), fontWeight: 700 }}>{formatPercent(grossYield)}</span></p>
+                <p style={subtleNoteCss}>Correspond au loyer HC × 12 / coût total projet.</p>
 
-                <p>
-                  <strong>
-                    <GlossaryInline
-                      termKey="rendementBrut"
-                      activeTerm={activeGlossaryTerm}
-                      onToggle={toggleGlossary}
-                    />
-                    {' :'}
-                  </strong>{' '}
-                  <span style={{ color: getGrossYieldColor(grossYield), fontWeight: 700 }}>
-                    {formatPercent(grossYield)}
-                  </span>
-                </p>
-                <p style={subtleNoteCss}>
-                  Correspond au loyer HC × 12 / coût total projet.
-                </p>
+                <p><strong><GlossaryInline termKey="rendementNet" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} /> {' :'}</strong> <span style={{ color: getNetYieldColor(netYield), fontWeight: 700 }}>{formatPercent(netYield)}</span></p>
+                <p style={subtleNoteCss}>Correspond au <GlossaryInline termKey="noi" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} /> / coût total projet.</p>
 
-                <p>
-                  <strong>
-                    <GlossaryInline
-                      termKey="rendementNet"
-                      activeTerm={activeGlossaryTerm}
-                      onToggle={toggleGlossary}
-                    />
-                    {' :'}
-                  </strong>{' '}
-                  <span style={{ color: getNetYieldColor(netYield), fontWeight: 700 }}>
-                    {formatPercent(netYield)}
-                  </span>
-                </p>
-                <p style={subtleNoteCss}>
-                  Correspond au{' '}
-                  <GlossaryInline
-                    termKey="noi"
-                    activeTerm={activeGlossaryTerm}
-                    onToggle={toggleGlossary}
-                  />{' '}
-                  / coût total projet.
-                </p>
+                <p><strong><GlossaryInline termKey="vacance" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} /> {' :'}</strong> {formatPercent(economicVacancy)}</p>
+                <p><strong><GlossaryInline termKey="opex" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} /> {' ratio :'}</strong> {formatPercent(opexRatio)}</p>
+                <p style={subtleNoteCss}>Correspond aux charges d’exploitation / loyer.</p>
 
-                <p>
-                  <strong>
-                    <GlossaryInline
-                      termKey="vacance"
-                      activeTerm={activeGlossaryTerm}
-                      onToggle={toggleGlossary}
-                    />
-                    {' :'}
-                  </strong>{' '}
-                  {formatPercent(economicVacancy)}
-                </p>
-
-                <p>
-                  <strong>
-                    <GlossaryInline
-                      termKey="opex"
-                      activeTerm={activeGlossaryTerm}
-                      onToggle={toggleGlossary}
-                    />
-                    {' ratio :'}
-                  </strong>{' '}
-                  {formatPercent(opexRatio)}
-                </p>
-                <p style={subtleNoteCss}>
-                  Correspond aux charges d’exploitation / loyer.
-                </p>
-
-                <p>
-                  <strong>
-                    <GlossaryInline
-                      termKey="effort"
-                      activeTerm={activeGlossaryTerm}
-                      onToggle={toggleGlossary}
-                    />
-                    {' moyen :'}
-                  </strong>{' '}
-                  {formatCurrency(avgMonthlyEffort)}
-                </p>
+                <p><strong><GlossaryInline termKey="effort" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} /> {' moyen :'}</strong> {formatCurrency(avgMonthlyEffort)}</p>
                 <p><strong>Intérêts annuels moyens sur détention :</strong> {formatCurrency(avgInterest)}</p>
                 <p><strong>Intérêts année 1 :</strong> {formatCurrency(year1 ? year1.annualInterest : 0)}</p>
               </div>
@@ -1762,52 +1436,10 @@ async function handleExportPdf() {
                 <p><strong>Prix de cession brut :</strong> {formatCurrency(grossSalePrice)}</p>
                 <p><strong>Frais de vente :</strong> {formatCurrency(saleFees)}</p>
                 <p><strong>Net vendeur après dette :</strong> {formatCurrency(netSaleProceeds)}</p>
-                <p>
-                  <strong>
-                    <GlossaryInline
-                      termKey="tri"
-                      activeTerm={activeGlossaryTerm}
-                      onToggle={toggleGlossary}
-                    />
-                    {' equity :'}
-                  </strong>{' '}
-                  <span style={{ color: getIrrColor(irr), fontWeight: 700 }}>
-                    {formatPercent(irr)}
-                  </span>
-                </p>
-                <p>
-                  <strong>
-                    <GlossaryInline
-                      termKey="multiple"
-                      activeTerm={activeGlossaryTerm}
-                      onToggle={toggleGlossary}
-                    />
-                    {' :'}
-                  </strong>{' '}
-                  {multipleCashOnCash.toFixed(2)}x
-                </p>
-                <p>
-                  <strong>
-                    <GlossaryInline
-                      termKey="capAchat"
-                      activeTerm={activeGlossaryTerm}
-                      onToggle={toggleGlossary}
-                    />
-                    {' :'}
-                  </strong>{' '}
-                  {formatPercent(capAchat)}
-                </p>
-                <p>
-                  <strong>
-                    <GlossaryInline
-                      termKey="capSortie"
-                      activeTerm={activeGlossaryTerm}
-                      onToggle={toggleGlossary}
-                    />
-                    {' :'}
-                  </strong>{' '}
-                  {formatPercent(capSortie)}
-                </p>
+                <p><strong><GlossaryInline termKey="tri" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} /> {' equity :'}</strong> <span style={{ color: getIrrColor(irr), fontWeight: 700 }}>{formatPercent(irr)}</span></p>
+                <p><strong><GlossaryInline termKey="multiple" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} /> {' :'}</strong> {multipleCashOnCash.toFixed(2)}x</p>
+                <p><strong><GlossaryInline termKey="capAchat" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} /> {' :'}</strong> {formatPercent(capAchat)}</p>
+                <p><strong><GlossaryInline termKey="capSortie" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} /> {' :'}</strong> {formatPercent(capSortie)}</p>
                 <p><strong>Gain Cap rate :</strong> {formatPercent(gainCapRate)}</p>
               </div>
             </div>
@@ -1815,16 +1447,7 @@ async function handleExportPdf() {
 
           <details open style={{ ...sectionCss, padding: isMobile ? 14 : 20 }}>
             <summary style={summaryStyle(isMobile)}>Synthèse des Inputs année 1</summary>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile
-                  ? '1fr'
-                  : 'repeat(auto-fit, minmax(250px, 1fr))',
-                gap: 14,
-                marginTop: 16,
-              }}
-            >
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(250px, 1fr))', gap: 14, marginTop: 16 }}>
               <div style={cardCss}>
                 <p><strong>Frais de notaire :</strong> {formatCurrency(notaryFees)}</p>
                 <p><strong>Mensualité hors assurance :</strong> {formatCurrency(monthlyPayment)}</p>
@@ -1854,82 +1477,34 @@ async function handleExportPdf() {
             <h2 style={{ marginTop: 0, fontSize: isMobile ? 20 : 24 }}>Comparaison de scénarios</h2>
             <p style={{ color: '#6b7280', marginTop: 0, marginBottom: 16, lineHeight: 1.45 }}>
               Les scénarios font varier principalement le loyer, le{' '}
-              <GlossaryInline
-                termKey="tauxNominal"
-                activeTerm={activeGlossaryTerm}
-                onToggle={toggleGlossary}
-              />{' '}
+              <GlossaryInline termKey="tauxNominal" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} />{' '}
               et la prise de valeur annuelle de l’actif.
             </p>
             <div style={{ minWidth: 0, overflowX: 'auto' }}>
-              <ScenarioComparison
-                scenarios={comparisonScenarios}
-                onScenarioChange={updateComparisonScenario}
-              />
+              <ScenarioComparison scenarios={comparisonScenarios} onScenarioChange={updateComparisonScenario} />
             </div>
           </div>
 
           <details open style={{ ...sectionCss, padding: isMobile ? 14 : 20 }}>
             <summary style={summaryStyle(isMobile)}>Tableau d’exploitation annuelle</summary>
 
-            <div
-              style={{
-                marginTop: 16,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                flexWrap: 'wrap',
-              }}
-            >
-              <div
-                style={{
-                  display: 'inline-flex',
-                  border: '1px solid #d1d5db',
-                  borderRadius: 10,
-                  overflow: 'hidden',
-                  background: '#fff',
-                  width: isSmallMobile ? '100%' : 'auto',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setTableMode('resume')}
-                  style={toggleButtonStyle(tableMode === 'resume', isSmallMobile)}
-                >
+            <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ display: 'inline-flex', border: '1px solid #d1d5db', borderRadius: 10, overflow: 'hidden', background: '#fff', width: isSmallMobile ? '100%' : 'auto' }}>
+                <button type="button" onClick={() => setTableMode('resume')} style={toggleButtonStyle(tableMode === 'resume', isSmallMobile)}>
                   Mode résumé
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setTableMode('detail')}
-                  style={toggleButtonStyle(tableMode === 'detail', isSmallMobile)}
-                >
+                <button type="button" onClick={() => setTableMode('detail')} style={toggleButtonStyle(tableMode === 'detail', isSmallMobile)}>
                   Mode détaillé
                 </button>
               </div>
             </div>
 
-            <div
-              style={{
-                marginTop: 16,
-                overflowX: 'auto',
-                WebkitOverflowScrolling: 'touch',
-                maxWidth: '100%',
-                minWidth: 0,
-              }}
-            >
-              <table
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  minWidth: tableMode === 'resume' ? (isMobile ? 900 : 1300) : (isMobile ? 1200 : 2200),
-                }}
-              >
+            <div style={{ marginTop: 16, overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%', minWidth: 0 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: tableMode === 'resume' ? (isMobile ? 900 : 1300) : (isMobile ? 1200 : 2200) }}>
                 <thead>
                   <tr>
                     {activeColumns.map((header) => (
-                      <th key={header} style={thStyle()}>
-                        {header}
-                      </th>
+                      <th key={header} style={thStyle()}>{header}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1938,7 +1513,7 @@ async function handleExportPdf() {
                     const bg = index % 2 === 0 ? '#ffffff' : '#f9fafb';
 
                     const cells: Record<string, React.ReactNode> = {
-                      'Année': row.year,
+                      Année: row.year,
                       'Loyer mensuel': formatCurrency(row.monthlyRent),
                       'Loyer facial annuel': formatCurrency(row.annualGrossRent),
                       'Vacance locative': formatCurrency(row.annualVacancyLoss),
@@ -1947,16 +1522,16 @@ async function handleExportPdf() {
                       'Taxe foncière': formatCurrency(row.propertyTax),
                       'Assurance PNO': formatCurrency(row.pnoInsurance),
                       'Gestion locative': formatCurrency(row.managementFees),
-                      'Maintenance': formatCurrency(row.maintenance),
-                      'Comptabilité': formatCurrency(row.accounting),
+                      Maintenance: formatCurrency(row.maintenance),
+                      Comptabilité: formatCurrency(row.accounting),
                       'Autres charges': formatCurrency(row.otherCharges),
                       'Total opex': formatCurrency(row.annualCharges),
-                      'NOI': formatCurrency(row.noi),
+                      NOI: formatCurrency(row.noi),
                       'Service dette': formatCurrency(row.annualDebtService),
                       "Effort d'épargne annuel": formatCurrency(row.annualCashflow),
                       "Effort d'épargne mensuel": formatCurrency(row.monthlyCashflow),
-                      'Intérêts': formatCurrency(row.annualInterest),
-                      'Amortissement': formatCurrency(row.annualPrincipal),
+                      Intérêts: formatCurrency(row.annualInterest),
+                      Amortissement: formatCurrency(row.annualPrincipal),
                       'CRD fin': formatCurrency(row.remainingBalanceEnd),
                     };
 
@@ -1995,13 +1570,7 @@ async function handleExportPdf() {
             </div>
 
             <p style={{ fontStyle: 'italic', color: '#6b7280', marginTop: 12 }}>
-              CRD ={' '}
-              <GlossaryInline
-                termKey="crd"
-                activeTerm={activeGlossaryTerm}
-                onToggle={toggleGlossary}
-              />
-              .
+              CRD = <GlossaryInline termKey="crd" activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} />.
             </p>
           </details>
 
@@ -2015,45 +1584,37 @@ async function handleExportPdf() {
               <p><strong>Prix de cession brut :</strong> {formatCurrency(grossSalePrice)}</p>
               <p><strong>Frais de vente :</strong> {formatCurrency(saleFees)}</p>
               <p><strong>Net vendeur après dette :</strong> {formatCurrency(netSaleProceeds)}</p>
-              <p style={subtleNoteCss}>
-                Le net vendeur après dette correspond au prix de revente – frais de revente – capital restant dû en année de revente.
-              </p>
+              <p style={subtleNoteCss}>Le net vendeur après dette correspond au prix de revente – frais de revente – capital restant dû en année de revente.</p>
               <p><strong>Flux TRI :</strong> {cashflows.map(formatCurrency).join(' | ')}</p>
             </div>
           </details>
 
           <section style={{ ...sectionCss, padding: isMobile ? 14 : 20 }}>
-            <h2 style={{ marginTop: 0, fontSize: isMobile ? 20 : 24 }}>
-              Guide / Lexique immobilier
-            </h2>
+            <h2 style={{ marginTop: 0, fontSize: isMobile ? 20 : 24 }}>Guide / Lexique immobilier</h2>
             <p style={{ color: '#6b7280', lineHeight: 1.5 }}>
-              Cette section permet à un débutant de comprendre les principales notions affichées
-              dans le simulateur. Tu peux cliquer sur chaque terme pour afficher son explication.
+              Cette section permet à un débutant de comprendre les principales notions affichées dans le simulateur. Tu peux cliquer sur chaque terme pour afficher son explication.
             </p>
-            <GlossaryGuide
-              activeTerm={activeGlossaryTerm}
-              onToggle={toggleGlossary}
-            />
+            <GlossaryGuide activeTerm={activeGlossaryTerm} onToggle={toggleGlossary} />
           </section>
         </div>
       </div>
 
       <div
         id="pdf-bankable-export"
-  style={{
-  position: 'absolute',
-  top: 0,
-  left: 0,
-  width: '794px',
-  background: '#ffffff',
-  color: '#111827',
-  padding: '28px 32px',
-  boxSizing: 'border-box',
-  fontFamily: 'Arial, sans-serif',
-  visibility: 'hidden',
-  opacity: 0,
-  pointerEvents: 'none',
-}}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '794px',
+          background: '#ffffff',
+          color: '#111827',
+          padding: '28px 32px',
+          boxSizing: 'border-box',
+          fontFamily: 'Arial, sans-serif',
+          visibility: 'hidden',
+          opacity: 0,
+          pointerEvents: 'none',
+        }}
       >
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 18, padding: 24 }}>
           <div style={{ marginBottom: 18 }}>
@@ -2063,14 +1624,7 @@ async function handleExportPdf() {
             </div>
           </div>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 12,
-              marginBottom: 18,
-            }}
-          >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 18 }}>
             <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
               <div style={{ fontSize: 12, color: '#6b7280' }}>Cash-flow</div>
               <div style={{ fontSize: 24, fontWeight: 700, color: getCashColor(year1 ? year1.monthlyCashflow : 0) }}>
@@ -2087,14 +1641,7 @@ async function handleExportPdf() {
             </div>
           </div>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr',
-              gap: 16,
-              marginBottom: 18,
-            }}
-          >
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 18 }}>
             <div>
               <div style={{ fontWeight: 700, marginBottom: 8 }}>Projet</div>
               <div style={{ fontSize: 13, lineHeight: 1.7 }}>
@@ -2102,6 +1649,7 @@ async function handleExportPdf() {
                 <div><strong>Stratégie :</strong> Location longue durée</div>
                 <div><strong>Horizon :</strong> {scenario.holdingPeriodYears} ans</div>
                 <div><strong>Loyer HC :</strong> {formatCurrency(scenario.monthlyRent)}</div>
+                <div><strong>Valeur après travaux :</strong> {formatCurrency(scenario.propertyValueAfterWorks)}</div>
               </div>
             </div>
 
@@ -2156,7 +1704,7 @@ async function handleExportPdf() {
             </table>
           </div>
 
-          <div>
+          <div style={{ pageBreakBefore: 'always', breakBefore: 'page' }}>
             <div style={{ fontWeight: 700, marginBottom: 8 }}>Détail du TRI</div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
               <thead>
@@ -2171,14 +1719,7 @@ async function handleExportPdf() {
                     <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb' }}>
                       {index === 0 ? 'Apport initial' : `Année ${index}`}
                     </td>
-                    <td
-                      style={{
-                        padding: 6,
-                        borderBottom: '1px solid #e5e7eb',
-                        color: cashflow >= 0 ? '#15803d' : '#dc2626',
-                        fontWeight: 700,
-                      }}
-                    >
+                    <td style={{ padding: 6, borderBottom: '1px solid #e5e7eb', color: cashflow >= 0 ? '#15803d' : '#dc2626', fontWeight: 700 }}>
                       {formatCurrency(cashflow)}
                     </td>
                   </tr>

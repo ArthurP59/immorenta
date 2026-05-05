@@ -7,6 +7,7 @@ export const defaultScenario: ScenarioInput = {
   purchasePrice: 130000,
   notaryFeesRate: 0.08,
   works: 0,
+  propertyValueAfterWorks: 130000,
   furniture: 1000,
   loanFees: 2500,
 
